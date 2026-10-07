@@ -1,7 +1,6 @@
 """Optional service-authenticated delivery tool; never a social publisher."""
-import os
-
-from lib.distribution_hub import HubClient, HubError
+from lib.distribution_hub import HubError
+from lib.hub_access import configured_client
 from tools.base_tool import (BaseTool, ExecutionMode, ResourceProfile, ResumeSupport,
                              ToolResult, ToolRuntime, ToolStability, ToolStatus, ToolTier)
 
@@ -16,9 +15,9 @@ class DistributionHub(BaseTool):
     execution_mode = ExecutionMode.SYNC
     runtime = ToolRuntime.API
     resume_support = ResumeSupport.FROM_CHECKPOINT
-    dependencies = ["env:DISTRIBUTION_HUB_ORIGIN", "env:DISTRIBUTION_HUB_CLIENT_ID", "env:DISTRIBUTION_HUB_CLIENT_SECRET"]
+    dependencies = []
     install_instructions = "Administrator provisions the Hub HTTPS origin and dedicated content-ingest Access service credentials."
-    capabilities = ["inspect_handoff", "ingest_metadata", "deliver_immutable_media", "inspect_readiness"]
+    capabilities = ["inspect_handoff", "ingest_metadata", "deliver_immutable_media", "inspect_readiness", "content_novelty"]
     supports = {"uploads": True, "social_publication": False, "generation": False, "resumable": True}
     best_for = ["verifying a reviewed exact artifact and delivering immutable files to Distribution Hub"]
     not_good_for = ["creating content, selecting destinations, QA approval or social upload/publication"]
@@ -26,16 +25,16 @@ class DistributionHub(BaseTool):
     side_effects = ["ingest creates Hub metadata/jobs", "deliver writes authenticated immutable media chunks"]
     user_visible_verification = ["Inspect exact content, current job bindings and file readiness; public publication is not asserted."]
     input_schema = {"type": "object", "required": ["operation"], "properties": {
-        "operation": {"enum": ["inspect", "readiness", "ingest", "deliver"]},
+        "operation": {"enum": ["inspect", "readiness", "ingest", "deliver", "content_index", "novelty"]},
         "channel": {"type": "string"}, "content_id": {"type": "string"}, "target": {"type": "string"},
-        "root": {"type": "string"}, "expected": {"type": "object"}, "payload": {"type": "object"}}}
+        "root": {"type": "string"}, "expected": {"type": "object"}, "payload": {"type": "object"},
+        "identity": {"type": "object"}, "stage": {"enum": ["PRE_GENERATION", "PRE_DELIVERY"]},
+        "registry_path": {"type": "string"}, "reserve": {"type": "boolean"}}}
     output_schema = {"type": "object"}
 
     @staticmethod
     def _client():
-        return HubClient(os.environ.get("DISTRIBUTION_HUB_ORIGIN", ""),
-                         os.environ.get("DISTRIBUTION_HUB_CLIENT_ID", ""),
-                         os.environ.get("DISTRIBUTION_HUB_CLIENT_SECRET", ""))
+        return configured_client()
 
     def get_status(self):
         try:
@@ -50,13 +49,21 @@ class DistributionHub(BaseTool):
             operation = inputs["operation"]
             if operation == "ingest":
                 result = client.ingest(inputs["payload"])
+            elif operation == "content_index":
+                result = client.content_index(inputs["channel"])
+            elif operation == "novelty":
+                result = client.novelty(inputs["channel"], inputs["identity"], inputs.get("stage", "PRE_GENERATION"),
+                                       registry_path=inputs.get("registry_path"), reserve=inputs.get("reserve", False))
             elif operation in {"inspect", "readiness", "deliver"}:
                 args = [inputs["channel"], inputs["content_id"]]
                 if operation != "inspect":
                     args.append(inputs["target"])
                 if operation == "deliver":
                     args.append(inputs["root"])
-                result = getattr(client, operation)(*args, expected=inputs.get("expected"))
+                kwargs = {"expected": inputs.get("expected")}
+                if operation == "deliver" and inputs.get("identity") is not None:
+                    kwargs["content_identity"] = inputs["identity"]
+                result = getattr(client, operation)(*args, **kwargs)
             else:
                 raise HubError("Unknown Hub operation")
             return ToolResult(success=True, data=result)

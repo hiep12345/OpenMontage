@@ -16,7 +16,8 @@ def test_optional_tool_discovery():
     assert registry.get_by_capability("distribution_handoff")[0].name == "distribution_hub"
 
 
-def test_unavailable_without_service_auth(monkeypatch):
+def test_unavailable_without_service_auth(monkeypatch, tmp_path):
+    monkeypatch.setenv("DISTRIBUTION_HUB_CONFIG", str(tmp_path / "missing-config.json"))
     for key in ("DISTRIBUTION_HUB_ORIGIN", "DISTRIBUTION_HUB_CLIENT_ID", "DISTRIBUTION_HUB_CLIENT_SECRET"):
         monkeypatch.delenv(key, raising=False)
     tool = DistributionHub()
