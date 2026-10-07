@@ -9,7 +9,7 @@ import requests
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from lib.distribution_hub import (CHUNK_BYTES, HubClient, HubError, bytes_digest,
-                                 describe_file, digest, safe_path, verify_handoff)
+                                 canonical_json, describe_file, digest, safe_path, verify_handoff)
 from scripts.hub_contract_fixture import fixture
 
 
@@ -136,14 +136,29 @@ def test_lost_response_inspects_without_retransmitting(tmp_path, lost):
     assert len([m for m, _, _ in transport.calls if m == "PUT"]) == 3
 
 
-def test_ingest_timeout_readback_and_bound_header():
+@pytest.mark.parametrize("metadata", [{}, {"title": "New reviewed title"}, {"qaScore": 8.5}, {"producedAt": "2026-02-01T00:00:00.000Z"}])
+def test_unknown_ingest_stops_even_if_preexisting_handoff_matches_selected_fields(metadata):
     data, item, transport, client = setup()
     transport.lose.add("POST_INGEST")
-    result = client.ingest(data["payload"])
-    assert result["recoveredByReadback"] and result["receipt"] is None
+    item.update(metadata)
+    with pytest.raises(HubError, match="Hub transport failed"):
+        client.ingest(data["payload"])
     call = transport.calls[0][2]
     assert call["headers"]["Idempotency-Key"] == data["payload"]["idempotencyKey"]
-    assert result["handoffs"][0]["source"]["contentId"] == item["id"]
+    assert len(transport.calls) == 1
+
+
+def test_fractional_qa_request_and_ecmascript_number_evidence():
+    data, item, transport, client = setup()
+    item["qaScore"] = 8.5
+    client.ingest(data["payload"])
+    assert json.loads(transport.calls[0][2]["data"])["items"][0]["qaScore"] == 8.5
+    for value, expected in [(8.5, "8.5"), (9.0, "9"), (-0.0, "0"), (1e-6, "0.000001"),
+                            (1.234e-5, "0.00001234"), (1e-7, "1e-7"), (1e21, "1e+21")]:
+        assert canonical_json(value) == expected
+    for invalid in [float("nan"), float("inf"), -float("inf")]:
+        with pytest.raises(HubError, match="Nonfinite"):
+            canonical_json({"qaScore": invalid})
 
 
 @pytest.mark.parametrize("bad", ["source", "job_version", "files", "manual", "manifest", "evidence", "duplicate"])

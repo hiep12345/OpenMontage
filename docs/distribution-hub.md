@@ -49,6 +49,11 @@ The BaseTool wrapper exposes the same `operation` names (`inspect`, `readiness`,
 `expected`; readiness/delivery also require `target`, and delivery requires `root`.
 Ingest takes `payload`. Every operation returns `ToolResult`. It is discoverable
 through the normal registry and optional when service configuration is missing.
+An ingest transport loss stops with an unresolved metadata outcome. Inspecting
+an existing handoff does not prove that the full batch, actor and permanent key
+committed. Resume only with the same reviewed body/key; Hub's receipt ledger
+then confirms a completed replay or rejects a conflict. Media descriptor/chunk
+readback separately proves the exact immutable bytes after a lost response.
 
 An expected reviewed item binds identity, source revisions, selected targets,
 manual intent, package/manifest hashes and exact per-job files. Inspect without

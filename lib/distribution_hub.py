@@ -29,11 +29,10 @@ def _require(condition, message):
 
 
 def _json_numbers(value):
-    # Contracts use integers. Match JS integer serialization, refuse ambiguous
-    # float encodings rather than accepting a different canonical hash.
+    # Reject nonfinite values before serializing requests or evidence.
     if isinstance(value, float):
-        _require(math.isfinite(value) and value.is_integer(), "Non-integer canonical number")
-        return int(value)
+        _require(math.isfinite(value), "Nonfinite canonical number")
+        return value
     if isinstance(value, dict):
         return {key: _json_numbers(item) for key, item in value.items()}
     if isinstance(value, list):
@@ -52,6 +51,26 @@ def canonical_json(value):
                               for key in sorted(value, key=_lex)) + "}"
     if isinstance(value, list):
         return "[" + ",".join(canonical_json(item) for item in value) + "]"
+    if isinstance(value, float):
+        if value == 0:
+            return "0"
+        text = repr(value).lower()
+        if "e" not in text:
+            return text[:-2] if text.endswith(".0") else text
+        mantissa, exponent = text.split("e")
+        power = int(exponent)
+        # ECMAScript uses fixed notation for [1e-6,1e21); Python's shortest
+        # round-trip mantissa supplies the digits without precision rounding.
+        if -6 <= power < 21:
+            sign = "-" if mantissa.startswith("-") else ""
+            digits = mantissa.lstrip("-").replace(".", "")
+            point = power + 1
+            if point <= 0:
+                return sign + "0." + "0" * -point + digits
+            if point >= len(digits):
+                return sign + digits + "0" * (point - len(digits))
+            return sign + digits[:point] + "." + digits[point:]
+        return mantissa + "e" + ("+" if power >= 0 else "-") + str(abs(power))
     return json.dumps(value, ensure_ascii=False, separators=(",", ":"), allow_nan=False)
 
 
@@ -295,14 +314,11 @@ class HubClient:
             _require(archive.scheme == "https" and archive.hostname == "drive.google.com" and
                      not archive.username and not archive.password and item.get("driveFileId"), "Real archive reference required")
             validate_manifest(item.get("deliveryManifest"), {**item, "contentId": item["id"]})
-        receipt = None
-        recovered = False
-        try:
-            receipt = self._request("POST", "/api/ingest", body=payload, key=payload["idempotencyKey"])
-        except HubTransportError:
-            recovered = True
+        # A handoff readback proves selected source/job evidence, not the full
+        # batch actor/key receipt. Unknown metadata outcomes remain unresolved.
+        receipt = self._request("POST", "/api/ingest", body=payload, key=payload["idempotencyKey"])
         snapshots = [self.inspect(item["channelCode"], item["id"], item) for item in payload["items"]]
-        return {"receipt": receipt, "recoveredByReadback": recovered, "handoffs": snapshots, "publicPublication": "NOT_ASSERTED"}
+        return {"receipt": receipt, "recoveredByReadback": False, "handoffs": snapshots, "publicPublication": "NOT_ASSERTED"}
 
     def _context(self, content_id, target, delivery):
         context = self._request("GET", "/api/ingest/artifacts/media", params={"contentId": content_id, "target": target})
