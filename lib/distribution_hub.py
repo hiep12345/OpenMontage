@@ -5,6 +5,7 @@ import hashlib
 import json
 import math
 import re
+import sqlite3
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -303,7 +304,64 @@ class HubClient:
         snapshot = self._request("GET", "/api/ingest/handoff", params={"channel": channel, "contentId": content_id})
         return verify_handoff(snapshot, channel, content_id, expected)
 
-    def ingest(self, payload):
+    def content_index(self, channel):
+        """Read all pages; verify the coherent revision, scope and exact cardinality."""
+        from lib.content_novelty import validate_identity
+        _require(isinstance(channel, str) and re.fullmatch(r"[A-Z0-9][A-Z0-9_-]{0,11}", channel), "Invalid index channel")
+        for attempt in range(2):
+            items, seen, cursors = [], set(), set()
+            cursor = None
+            first = None
+            try:
+                while True:
+                    params = {"channel": channel, "limit": 200}
+                    if cursor:
+                        params["cursor"] = cursor
+                    page = self._request("GET", "/api/ingest/content-index", params=params)
+                    _require(isinstance(page, dict) and page.get("schemaVersion") == 1 and page.get("channelCode") == channel and
+                             type(page.get("active")) is int and page["active"] in (0, 1) and _hash(page.get("revision")) and
+                             type(page.get("total")) is int and 0 <= page["total"] <= 10000 and isinstance(page.get("coverage"), dict) and
+                             page["coverage"].get("completeHubInventory") is True and isinstance(page.get("items"), list) and len(page["items"]) <= 200,
+                             "Invalid or incomplete content index")
+                    if first is None:
+                        first = {k: page[k] for k in ("schemaVersion", "channelCode", "active", "revision", "total", "coverage")}
+                    _require(all(page[k] == first[k] for k in first), "Content index changed during pagination")
+                    for item in page["items"]:
+                        _require(isinstance(item, dict) and isinstance(item.get("id"), str) and item["id"] not in seen and
+                                 item.get("kind") in {"hub", "external"} and isinstance(item.get("title"), str), "Duplicate or invalid index row")
+                        if item.get("identity") is not None:
+                            try:
+                                validate_identity(item["identity"])
+                            except (TypeError, ValueError):
+                                raise HubError("Invalid creative index identity") from None
+                        seen.add(item["id"])
+                        items.append(item)
+                    _require(len(items) <= first["total"], "Index has excess rows")
+                    cursor = page.get("nextCursor")
+                    if cursor is None:
+                        break
+                    _require(isinstance(cursor, str) and re.fullmatch(r"[A-Za-z0-9_-]{1,256}", cursor) and cursor not in cursors and page["items"], "Invalid or repeated index cursor")
+                    cursors.add(cursor)
+                _require(len(items) == first["total"] and [i["id"] for i in items] == sorted(i["id"] for i in items), "Incomplete or unsorted content index")
+                _require(digest({"channelCode": channel, "active": first["active"], "coverage": first["coverage"], "items": items}) == first["revision"], "Content index revision mismatch")
+                return {**first, "items": items, "nextCursor": None}
+            except HubError as error:
+                # Retrying only an idempotent read can recover an explicit page conflict.
+                if attempt == 0 and str(error) in {"Hub HTTP 409", "Content index changed during pagination"}:
+                    continue
+                raise
+
+    def novelty(self, channel, identity, stage="PRE_GENERATION", *, registry_path=None, reserve=False):
+        from lib.content_novelty import check_content
+        _require(type(reserve) is bool, "Invalid production reservation flag")
+        try:
+            return check_content(self, channel, identity, stage, registry_path, reserve)
+        except (ValueError, OSError, sqlite3.Error) as error:
+            if str(error).startswith("ACTIVE_INTENT_CONFLICT"):
+                raise HubError("ACTIVE_INTENT_CONFLICT") from None
+            raise HubError("Creative preflight inputs or registry unavailable") from None
+
+    def ingest(self, payload, *, novelty_registry=None):
         _require(isinstance(payload, dict) and payload.get("schemaVersion") == 2 and
                  payload.get("sourceSystem") == "production-pipeline" and
                  isinstance(payload.get("idempotencyKey"), str) and 16 <= len(payload["idempotencyKey"]) <= 180 and
@@ -316,9 +374,23 @@ class HubClient:
             validate_manifest(item.get("deliveryManifest"), {**item, "contentId": item["id"]})
         # A handoff readback proves selected source/job evidence, not the full
         # batch actor/key receipt. Unknown metadata outcomes remain unresolved.
+        checks = [self.novelty(item["channelCode"], item["contentIdentity"], "PRE_DELIVERY", registry_path=novelty_registry)
+                  for item in payload["items"] if "contentIdentity" in item]
         receipt = self._request("POST", "/api/ingest", body=payload, key=payload["idempotencyKey"])
         snapshots = [self.inspect(item["channelCode"], item["id"], item) for item in payload["items"]]
-        return {"receipt": receipt, "recoveredByReadback": False, "handoffs": snapshots, "publicPublication": "NOT_ASSERTED"}
+        for item in payload["items"]:
+            if "contentIdentity" in item:
+                self._verify_current_identity(item["channelCode"], item["id"], item["sourceRevision"], item["contentIdentity"])
+        result = {"receipt": receipt, "recoveredByReadback": False, "handoffs": snapshots, "publicPublication": "NOT_ASSERTED"}
+        if checks:
+            result["noveltyChecks"] = checks
+        return result
+
+    def _verify_current_identity(self, channel, content_id, source_revision, identity):
+        index = self.content_index(channel)
+        indexed = next((c for c in index["items"] if c["kind"] == "hub" and c["id"] == content_id), None)
+        _require(indexed is not None and indexed.get("sourceRevision") == source_revision and
+                 indexed.get("identityHash") == digest(identity), "Creative identity differs from its accepted source")
 
     def _context(self, content_id, target, delivery):
         context = self._request("GET", "/api/ingest/artifacts/media", params={"contentId": content_id, "target": target})
@@ -360,8 +432,13 @@ class HubClient:
                 "binding": context["binding"], "manifestHash": context.get("manifestHash"),
                 "files": statuses, "ready": all(s["ready"] for s in statuses), "publicPublication": "NOT_ASSERTED"}
 
-    def deliver(self, channel, content_id, target, root, expected=None):
+    def deliver(self, channel, content_id, target, root, expected=None, *, content_identity=None, novelty_registry=None):
         snapshot = self.inspect(channel, content_id, expected)
+        identity = content_identity or (expected or {}).get("contentIdentity")
+        novelty_check = None
+        if identity is not None:
+            novelty_check = self.novelty(channel, identity, "PRE_DELIVERY", registry_path=novelty_registry)
+            self._verify_current_identity(channel, content_id, snapshot["source"]["sourceRevision"], identity)
         row = next((r for r in snapshot["jobDeliveryEvidence"]["jobs"] if r["platformCode"] == target), None)
         _require(row is not None and row["verification"] == "VERIFIED", "Selected delivery unavailable")
         context = self._context(content_id, target, row["delivery"])
@@ -404,4 +481,7 @@ class HubClient:
         _require(verified["sourceRecordHash"] == snapshot["sourceRecordHash"] and verified["binding"] == context["binding"] and
                  verified["job"] == next(j for j in snapshot["jobs"] if j["platformCode"] == target) and verified["ready"],
                  "Final handoff readiness changed")
-        return {**verified, "uploadedChunks": uploaded, "localFilesVerified": [f["path"] for f, _, _ in prepared]}
+        result = {**verified, "uploadedChunks": uploaded, "localFilesVerified": [f["path"] for f, _, _ in prepared]}
+        if novelty_check is not None:
+            result["noveltyCheck"] = novelty_check
+        return result

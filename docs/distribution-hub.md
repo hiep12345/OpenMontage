@@ -6,6 +6,12 @@ approve QA, upload to social providers, schedule or publish. Existing offline
 `export_bundle` behavior and the generic `publish` capability are unchanged.
 The tool is discovered under the dedicated `distribution_handoff` capability.
 
+The additive `content_index` and `novelty` operations also expose the
+`content_novelty` capability. See [MT content preflight](content-novelty.md) for
+all-status Hub retrieval, test/remake identities, shared reservations, protected
+access reuse and the required pre-generation/pre-delivery workflow. Novelty
+review remains separate from operator approval and public publication.
+
 An administrator provisions `DISTRIBUTION_HUB_ORIGIN` (an HTTPS origin without
 path/query), `DISTRIBUTION_HUB_CLIENT_ID`, and `DISTRIBUTION_HUB_CLIENT_SECRET`
 for the dedicated `content-ingest` Cloudflare Access principal. Availability
