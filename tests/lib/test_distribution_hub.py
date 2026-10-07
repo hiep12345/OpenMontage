@@ -102,6 +102,70 @@ def setup(content_type="photo"):
     return data, item, transport, client
 
 
+class IdentityTransport(Transport):
+    def __init__(self, item):
+        super().__init__(handoff(item))
+        self.item = item
+        self.index_available = True
+        self.accept_identity = True
+        self.accepted = False
+    def request(self, method, url, **kwargs):
+        if url.endswith("/api/ingest/content-index"):
+            self.calls.append((method, url, kwargs))
+            if not self.index_available:
+                return Response({}, status=503)
+            card = {"id": self.item["id"], "kind": "hub", "title": self.item["title"],
+                    "sourceRevision": self.item["sourceRevision"],
+                    "identity": self.item["contentIdentity"] if self.accepted and self.accept_identity else None,
+                    "identityHash": digest(self.item["contentIdentity"]) if self.accepted and self.accept_identity else None}
+            body = {"channelCode": "MT", "active": 1, "coverage": {"completeHubInventory": True}, "items": [card]}
+            return Response({**body, "schemaVersion": 1, "revision": digest(body), "total": 1, "nextCursor": None})
+        if method == "POST" and url.endswith("/api/ingest"):
+            self.accepted = True
+        return super().request(method, url, **kwargs)
+
+
+def identity_setup():
+    from test_content_novelty import identity
+    data = fixture("photo")
+    item = data["payload"]["items"][0]
+    item["contentIdentity"] = identity(primaryFileSha256=item["deliveryManifest"]["asset"]["sha256"])
+    transport = IdentityTransport(item)
+    return data, item, transport, HubClient("https://hub.example", "id", "secret", transport=transport)
+
+
+def test_identity_ingest_and_byte_delivery_refresh_and_verify_source(tmp_path):
+    data, item, transport, client = identity_setup()
+    registry = tmp_path / "shared.sqlite"
+    result = client.ingest(data["payload"], novelty_registry=registry)
+    assert result["noveltyChecks"][0]["stage"] == "PRE_DELIVERY"
+    assert transport.calls[0][0] == "GET" and transport.calls[1][0] == "POST"
+    write_files(tmp_path, data)
+    delivered = client.deliver("MT", item["id"], "fb-ig", tmp_path, item, novelty_registry=registry)
+    assert delivered["ready"] and delivered["noveltyCheck"]["status"] == "REVIEW_REQUIRED"
+
+
+def test_missing_index_blocks_identity_ingest_before_any_write(tmp_path):
+    data, item, transport, client = identity_setup()
+    transport.index_available = False
+    with pytest.raises(HubError):
+        client.ingest(data["payload"], novelty_registry=tmp_path / "missing.sqlite")
+    assert all(m == "GET" for m, _, _ in transport.calls)
+
+
+def test_identity_readback_mismatch_is_not_success_and_blocks_media_write(tmp_path):
+    data, item, transport, client = identity_setup()
+    transport.accept_identity = False
+    registry = tmp_path / "wrong.sqlite"
+    with pytest.raises(HubError, match="accepted source"):
+        client.ingest(data["payload"], novelty_registry=registry)
+    assert len([m for m, u, _ in transport.calls if m == "POST" and u.endswith('/api/ingest')]) == 1
+    transport.calls.clear()
+    with pytest.raises(HubError, match="accepted source"):
+        client.deliver("MT", item["id"], "fb-ig", tmp_path, item, novelty_registry=registry)
+    assert all(m == "GET" for m, _, _ in transport.calls)
+
+
 def write_files(root, data):
     import base64
     for file in data["files"]:

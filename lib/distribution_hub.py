@@ -378,10 +378,19 @@ class HubClient:
                   for item in payload["items"] if "contentIdentity" in item]
         receipt = self._request("POST", "/api/ingest", body=payload, key=payload["idempotencyKey"])
         snapshots = [self.inspect(item["channelCode"], item["id"], item) for item in payload["items"]]
+        for item in payload["items"]:
+            if "contentIdentity" in item:
+                self._verify_current_identity(item["channelCode"], item["id"], item["sourceRevision"], item["contentIdentity"])
         result = {"receipt": receipt, "recoveredByReadback": False, "handoffs": snapshots, "publicPublication": "NOT_ASSERTED"}
         if checks:
             result["noveltyChecks"] = checks
         return result
+
+    def _verify_current_identity(self, channel, content_id, source_revision, identity):
+        index = self.content_index(channel)
+        indexed = next((c for c in index["items"] if c["kind"] == "hub" and c["id"] == content_id), None)
+        _require(indexed is not None and indexed.get("sourceRevision") == source_revision and
+                 indexed.get("identityHash") == digest(identity), "Creative identity differs from its accepted source")
 
     def _context(self, content_id, target, delivery):
         context = self._request("GET", "/api/ingest/artifacts/media", params={"contentId": content_id, "target": target})
@@ -429,10 +438,7 @@ class HubClient:
         novelty_check = None
         if identity is not None:
             novelty_check = self.novelty(channel, identity, "PRE_DELIVERY", registry_path=novelty_registry)
-            index = self.content_index(channel)
-            indexed = next((c for c in index["items"] if c["kind"] == "hub" and c["id"] == content_id), None)
-            _require(indexed is not None and indexed.get("sourceRevision") == snapshot["source"]["sourceRevision"] and
-                     indexed.get("identityHash") == digest(identity), "Delivery creative identity differs from its accepted source")
+            self._verify_current_identity(channel, content_id, snapshot["source"]["sourceRevision"], identity)
         row = next((r for r in snapshot["jobDeliveryEvidence"]["jobs"] if r["platformCode"] == target), None)
         _require(row is not None and row["verification"] == "VERIFIED", "Selected delivery unavailable")
         context = self._context(content_id, target, row["delivery"])
