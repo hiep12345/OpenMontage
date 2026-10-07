@@ -1,6 +1,7 @@
 name: CI
 
 on:
+  workflow_dispatch:
   pull_request:
     branches:
       - main
@@ -41,6 +42,9 @@ jobs:
 
       - name: Run lint smoke checks
         run: make lint
+
+      - name: Compile maintained Hub client and fixture
+        run: python -m py_compile lib/distribution_hub.py tools/publishers/distribution_hub.py scripts/hub_contract_fixture.py
 
       - name: Run test suite
         run: make test
