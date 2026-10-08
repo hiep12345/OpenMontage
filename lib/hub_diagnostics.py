@@ -11,7 +11,7 @@ from pathlib import Path
 from lib.distribution_hub import HubError, PUBLIC_ERROR_CODES, digest
 
 _LABEL = re.compile(r"[A-Za-z0-9_.:-]{1,180}\Z")
-_OPERATIONS = {"inspect", "readiness", "ingest", "deliver", "content_index", "novelty"}
+_OPERATIONS = {"inspect", "readiness", "ingest", "deliver", "content_index", "novelty", "handoff"}
 
 
 def _label(value):
@@ -33,6 +33,12 @@ def next_action(code, unknown=False):
         return "RECONCILE_EXACT_REQUEST"
     if code == "D1_READ_QUOTA_EXCEEDED":
         return "WAIT_FOR_QUOTA_RESET"
+    if code == "HANDOFF_METADATA_UNCERTAIN":
+        return "RECONCILE_EXACT_REQUEST"
+    if code == "HANDOFF_PROTOCOL_UNSUPPORTED":
+        return "UPDATE_HANDOFF_CLIENT"
+    if code == "HANDOFF_CHECKPOINT_BUSY":
+        return "WAIT_FOR_CURRENT_HANDOFF"
     if code in {"AUTH_REQUIRED", "FORBIDDEN", "MANUAL_ONLY"}:
         return "CHECK_AUTHORIZATION"
     if code and ("STALE" in code or code == "CONTENT_INDEX_CHANGED"):

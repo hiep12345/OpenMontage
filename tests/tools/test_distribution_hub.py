@@ -203,3 +203,30 @@ def test_report_revisions_reject_arbitrary_text(tmp_path):
     saved = json.loads(report.path.read_text())
     assert saved["reviewedVersions"][0]["sourceRevision"] is None
     assert saved["reviewedVersions"][0]["distributionRevision"] is None
+
+
+def test_wrapper_handoff_retains_report_checkpoint_and_all_target_readiness(monkeypatch, tmp_path):
+    from test_hub_handoff import prepared
+    data, _, transport, client, root, checkpoint = prepared(tmp_path)
+    monkeypatch.setattr(DistributionHub, "_client", staticmethod(lambda: client))
+    inputs = {"operation": "handoff", "payload": data["payload"], "root": str(root),
+              "project_dir": str(tmp_path), "checkpoint_path": str(checkpoint)}
+    result = DistributionHub().execute(inputs)
+    assert result.success and result.data["ready"] and result.data["reportPersisted"]
+    saved = json.loads(Path(result.data["reportPath"]).read_text())
+    assert saved["operation"] == "handoff" and saved["ready"] and saved["nextAction"] == "OPERATOR_INSPECTION"
+    assert saved["publicPublication"] == "NOT_ASSERTED"
+    before = len([m for m, _, _ in transport.calls if m != "GET"])
+    assert DistributionHub().execute(inputs).success
+    assert before == len([m for m, _, _ in transport.calls if m != "GET"])
+
+
+def test_wrapper_forwards_custom_registry_to_standalone_delivery(monkeypatch, tmp_path):
+    class Client:
+        def deliver(self, *args, **kwargs):
+            assert kwargs["novelty_registry"] == "shared.sqlite"
+            return {"ready": True}
+    monkeypatch.setattr(DistributionHub, "_client", staticmethod(lambda: Client()))
+    assert DistributionHub().execute({"operation": "deliver", "channel": "MT", "content_id": "fixture",
+                                      "target": "fb-ig", "root": str(tmp_path), "project_dir": str(tmp_path),
+                                      "registry_path": "shared.sqlite"}).success
