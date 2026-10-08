@@ -45,3 +45,22 @@ def test_wrapper_delegates_reviewed_inputs(monkeypatch):
     monkeypatch.setattr(DistributionHub, "_client", staticmethod(lambda: Client()))
     result = DistributionHub().execute({"operation": "inspect", "channel": "MT", "content_id": "fixture", "expected": {"id": "fixture"}})
     assert result.success and result.data["verified"]
+
+
+def test_wrapper_passes_same_plan_and_registry_to_reservation_and_ingest(monkeypatch):
+    calls = []
+    class Client:
+        def novelty(self, channel, identity, stage, **kwargs):
+            calls.append(("novelty", kwargs))
+            return {"reserved": True}
+        def ingest(self, payload, **kwargs):
+            calls.append(("ingest", kwargs))
+            return {"checked": True}
+    monkeypatch.setattr(DistributionHub, "_client", staticmethod(lambda: Client()))
+    plan = {"planHash": "exact-plan"}
+    tool = DistributionHub()
+    assert tool.execute({"operation": "novelty", "channel": "MT", "identity": {}, "reserve": True,
+                         "delivery_plan": plan, "registry_path": "shared.sqlite"}).success
+    assert tool.execute({"operation": "ingest", "payload": {}, "delivery_plan": plan, "registry_path": "shared.sqlite"}).success
+    assert all(kwargs["delivery_plan"] is plan for _, kwargs in calls)
+    assert calls[0][1]["registry_path"] == calls[1][1]["novelty_registry"] == "shared.sqlite"

@@ -110,6 +110,8 @@ class NoveltyRegistry:
             WHERE story_key IS NOT NULL AND state IN ('PREPARED','GENERATING','SUBMITTED_UNKNOWN');
           CREATE TABLE IF NOT EXISTS intent_events(id INTEGER PRIMARY KEY,production_id TEXT NOT NULL,state TEXT NOT NULL,version INTEGER NOT NULL,body TEXT NOT NULL);
           CREATE TABLE IF NOT EXISTS decisions(cache_key TEXT PRIMARY KEY,body TEXT NOT NULL);
+          CREATE TABLE IF NOT EXISTS delivery_plans(production_id TEXT PRIMARY KEY,channel TEXT NOT NULL,
+            plan_hash TEXT NOT NULL,body TEXT NOT NULL);
         """)
 
     def close(self):
@@ -158,8 +160,11 @@ class NoveltyRegistry:
         with self.db:
             self.db.execute("INSERT OR IGNORE INTO facts VALUES(?,?,?,?)", (channel, "local", body["id"], canonical(body)))
 
-    def reserve(self, channel, identity):
+    def reserve(self, channel, identity, delivery_plan=None):
         validate_identity(identity)
+        if delivery_plan is not None:
+            from lib.content_delivery import validate_plan
+            validate_plan(delivery_plan, channel=channel, identity=identity)
         meaningful = identity["question"] and identity["takeaway"] and identity["storyBeats"]
         if identity["purpose"] != "TEST" and not meaningful:
             raise ValueError("Production reservation needs its question, takeaway and story beats")
@@ -172,18 +177,37 @@ class NoveltyRegistry:
             if prior:
                 if prior[0] != digest(identity) or prior[1] not in {"PREPARED", "GENERATING", "SUBMITTED_UNKNOWN"} or prior[2] != channel:
                     raise ValueError("Production identity or completed intent cannot be silently replaced")
-            else:
+            if delivery_plan is not None:
+                planned = self.db.execute("SELECT channel,plan_hash,body FROM delivery_plans WHERE production_id=?", (identity["productionId"],)).fetchone()
+                if planned:
+                    if planned != (channel, delivery_plan["planHash"], canonical(delivery_plan)):
+                        raise ValueError("Reserved delivery plan cannot be replaced")
+                elif prior and prior[1] != "PREPARED":
+                    raise ValueError("Cannot attach a delivery plan after generation starts")
+                else:
+                    self.db.execute("INSERT INTO delivery_plans VALUES(?,?,?,?)", (identity["productionId"], channel, delivery_plan["planHash"], canonical(delivery_plan)))
+            if not prior:
                 self.db.execute("INSERT INTO intents VALUES(?,?,?,?,?,'PREPARED',1)", (identity["productionId"], channel, key, digest(identity), canonical(identity)))
                 self.db.execute("INSERT INTO intent_events(production_id,state,version,body) VALUES(?,'PREPARED',1,?)", (identity["productionId"], canonical(identity)))
             self.db.commit()
             return {"state": prior[1] if prior else "PREPARED", "version": prior[3] if prior else 1,
-                    "productionId": identity["productionId"]}
+                    "productionId": identity["productionId"], **({"deliveryPlanHash": delivery_plan["planHash"]} if delivery_plan is not None else {})}
         except sqlite3.IntegrityError:
             self.db.rollback()
             raise ValueError("ACTIVE_INTENT_CONFLICT: another production owns this story") from None
         except Exception:
             self.db.rollback()
             raise
+
+    def verify_delivery_plan(self, plan):
+        """Read the immutable pre-generation binding; never retroactively seal it."""
+        from lib.content_delivery import validate_plan
+        validate_plan(plan)
+        row = self.db.execute("SELECT p.channel,p.plan_hash,p.body,i.state FROM delivery_plans p JOIN intents i ON i.production_id=p.production_id WHERE p.production_id=?",
+                              (plan["identity"]["productionId"],)).fetchone()
+        if row != (plan["channelCode"], plan["planHash"], canonical(plan), "FINISHED"):
+            raise ValueError("Delivery requires the exact reserved plan and finished production intent")
+        return plan["planHash"]
 
     def transition(self, production_id, expected_version, state, reconciled=False):
         if state not in {"GENERATING", "SUBMITTED_UNKNOWN", "FINISHED", "CANCELLED"}:
@@ -283,7 +307,7 @@ class NoveltyRegistry:
         return {**report, "cacheHit": False}
 
 
-def check_content(client, channel, identity, stage, registry_path=None, reserve=False):
+def check_content(client, channel, identity, stage, registry_path=None, reserve=False, delivery_plan=None):
     registry = NoveltyRegistry(registry_path)
     try:
         snapshot = client.content_index(channel)
@@ -292,7 +316,7 @@ def check_content(client, channel, identity, stage, registry_path=None, reserve=
         if reserve:
             if snapshot["active"] != 1:
                 raise ValueError("Inactive channel cannot reserve a production")
-            report["intent"] = registry.reserve(channel, identity)
+            report["intent"] = registry.reserve(channel, identity, delivery_plan)
         registry.record(channel, identity)
         return report
     finally:

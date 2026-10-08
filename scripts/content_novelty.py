@@ -16,6 +16,7 @@ def main():
     parser.add_argument("--channel", default="MT")
     parser.add_argument("--registry")
     parser.add_argument("--identity")
+    parser.add_argument("--delivery-plan", help="Sealed proposal plan required for a new MT generation reservation")
     parser.add_argument("--stage", choices=["PRE_GENERATION", "PRE_DELIVERY"], default="PRE_GENERATION")
     parser.add_argument("--reserve", action="store_true")
     parser.add_argument("--packet")
@@ -27,8 +28,14 @@ def main():
     if args.operation == "check":
         if not args.identity:
             parser.error("check requires --identity")
-        result = configured_client().novelty(args.channel, json.loads(Path(args.identity).read_text(encoding="utf-8")), args.stage,
-                                            registry_path=args.registry, reserve=args.reserve)
+        identity = json.loads(Path(args.identity).read_text(encoding="utf-8"))
+        plan = json.loads(Path(args.delivery_plan).read_text(encoding="utf-8")) if args.delivery_plan else None
+        # Validate before loading credentials, reading Hub or reserving generation.
+        if plan is not None or (args.reserve and args.channel == "MT"):
+            from lib.content_delivery import validate_plan
+            validate_plan(plan, channel=args.channel, identity=identity)
+        result = configured_client().novelty(args.channel, identity, args.stage,
+                                            registry_path=args.registry, reserve=args.reserve, delivery_plan=plan)
     else:
         registry = NoveltyRegistry(args.registry)
         try:

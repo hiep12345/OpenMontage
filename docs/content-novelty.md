@@ -1,13 +1,18 @@
 # MT content preflight
 
 Use the maintained `content_novelty` capability or
-`python scripts/content_novelty.py check --identity PATH --channel MT --reserve`
+`python scripts/content_novelty.py check --identity PATH --delivery-plan PLAN --channel MT --reserve`
 before new generation. The JSON identity uses the strict v1 contract documented
 by `lib/content_novelty.py`: family/variant/production IDs, purpose, viewer
 question and takeaway, story beats, template/application, recipe/file/script/
 native-clip hashes, experiment reference and remake lineage. Unknown values
 remain empty/null as permitted; do not fabricate scripts or publication proof.
 TEST requires an experiment reference; REMAKE requires a parent and reason.
+New Hub-bound MT reservations also require the sealed proposal delivery plan
+described in [content-delivery.md](content-delivery.md). The plan records one
+episode and its intended file/destination mapping before generation and is
+stored immutably with the reservation. Final identity ingest must match that
+exact plan and a finished intent before any Hub request.
 
 The client fetches every all-status Hub page, verifies the entire snapshot digest
 and refreshes the derived local index. A shared registry defaults to
@@ -35,7 +40,8 @@ but do not block independent random TEST runs. This ledger coordinates one host;
 it does not operate Flow or prove multi-host scheduling safety.
 
 Repeat `check --stage PRE_DELIVERY` with the finished script and file hashes.
-Schema-v2 ingest carrying `contentIdentity` refreshes this report automatically.
+Schema-v2 ingest carrying `contentIdentity` refreshes this report automatically;
+MT batches must also pass their reserved `delivery_plan`.
 Identity-bound delivery also verifies the current Hub source and creative hash
 before writing bytes. Legacy calls remain supported but do not gain creative
 coverage. Keep operator publishing approval separate from novelty review.
