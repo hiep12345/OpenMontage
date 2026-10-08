@@ -1,5 +1,9 @@
 # Distribution Hub delivery
 
+Before a link-bearing package is declared ready, complete
+[website link acceptance](caption-link-quality.md) using the exact final captions.
+Transport readiness does not prove that a caption's website destination works.
+
 The optional `distribution_hub` tool verifies reviewed metadata and delivers
 immutable files to the Hub. It does not generate media, select destinations,
 approve QA, upload to social providers, schedule or publish. Existing offline

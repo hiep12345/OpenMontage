@@ -79,6 +79,17 @@ Agent reads pipeline manifest (YAML) -> reads stage director skill (MD)
 
 **Python = tools + persistence.** No orchestration logic, creative decisions, review logic, or checkpoint policy in Python code. The agent makes those decisions guided by instructions.
 
+### Caption website acceptance
+
+For any link-bearing social package, read `docs/caption-link-quality.md` before
+packaging or reporting Hub handoff readiness. Record a production owner, website
+owner and reviewer. Obtain the exact production route from the website owner;
+never generate a recipe slug just from its name. Verify URLs extracted from the
+final caption files, exact source formula/media match and rendered primary action.
+FAIL or NOT TESTED blocks handoff readiness and new publishing approval. A sealed
+caption/hash and Hub file readiness do not establish website QA. The linked
+checklist defines evidence, rechecks, operator responsibility and repair.
+
 ### Hub-bound MT episode identity
 
 Before reserving or generating a new Mix Therapy episode that will go to Hub,
