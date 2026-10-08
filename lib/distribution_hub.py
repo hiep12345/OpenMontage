@@ -13,7 +13,7 @@ from urllib.parse import urlsplit
 import requests
 
 CHUNK_BYTES = 8 * 1024 * 1024
-TARGETS = {"fb-ig", "pinterest", "youtube", "x", "tiktok", "amz"}
+TARGETS = {"fb-ig", "facebook", "instagram", "pinterest", "youtube", "x", "tiktok", "amz"}
 _HASH = re.compile(r"sha256:[a-f0-9]{64}\Z")
 
 
@@ -45,7 +45,7 @@ PUBLIC_ERROR_CODES = frozenset({
     "CONTENT_INDEX_CHANNEL_NOT_FOUND", "CONTENT_INDEX_TOO_LARGE", "CONTENT_INDEX_IDENTITY_INVALID",
     "CONTENT_INDEX_CHANGED",
     "HANDOFF_PROTOCOL_UNSUPPORTED", "HANDOFF_CHECKPOINT_CONFLICT", "HANDOFF_CHECKPOINT_BUSY",
-    "HANDOFF_METADATA_UNCERTAIN",
+    "HANDOFF_METADATA_UNCERTAIN", "META_TARGET_OVERLAP",
 })
 
 
@@ -59,6 +59,12 @@ class HubHttpError(HubError):
 def _require(condition, message):
     if not condition:
         raise HubError(message)
+
+
+def require_disjoint_meta_targets(targets):
+    """Legacy paired jobs cannot duplicate an independent Meta destination."""
+    _require("fb-ig" not in targets or not {"facebook", "instagram"}.intersection(targets),
+             "Legacy fb-ig overlaps independent Meta destinations")
 
 
 def _json_numbers(value):
@@ -189,6 +195,7 @@ def validate_manifest(manifest, source):
                  asset["path"] in paths and paths == sorted(set(paths), key=_lex), "Invalid destination files")
         targets.append(row["target"])
     _require(targets == sorted(set(targets), key=_lex), "Duplicate or unsorted destinations")
+    require_disjoint_meta_targets(targets)
     return manifest
 
 
@@ -263,6 +270,7 @@ def verify_handoff(snapshot, channel, content_id, expected=None):
                 _require(source.get(key) == wanted_value, "Reviewed source mismatch")
         wanted = expected.get("targets")
         _require(isinstance(wanted, list) and wanted and len(set(wanted)) == len(wanted) and set(wanted) <= TARGETS, "Invalid selected targets")
+        require_disjoint_meta_targets(wanted)
         expected_manifest = expected.get("deliveryManifest")
         if expected_manifest is not None:
             validate_manifest(expected_manifest, {**expected, "contentId": content_id})

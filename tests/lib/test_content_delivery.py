@@ -32,10 +32,10 @@ def reserve_finished(path, plan):
         registry.close()
 
 
-def episode():
+def episode(targets=None):
     base = identity(variantId="lesson-master", productionId="episode-1", familyId="lesson-family", purpose="PRODUCTION", experimentRef=None)
     rows = [{"variantId": "lesson-" + t, "targets": [t], "differenceReason": "Different rendered hook/CTA for " + t}
-            for t in ["fb-ig", "pinterest", "tiktok", "youtube"]]
+            for t in (targets or ["fb-ig", "pinterest", "tiktok", "youtube"])]
     plan = seal_plan({"schemaVersion": 1, "channelCode": "MT", "contentType": "video", "identity": base,
                       "strategy": "PLATFORM_VARIANTS", "variants": rows})
     payload = fixture("video")["payload"]
@@ -76,6 +76,54 @@ def test_shared_file_uses_one_id_with_multiple_destinations():
     plan = plan_for_item(item)
     assert validate_batch(payload, plan)["variantCount"] == 1
     assert validate_batch(payload, plan)["targetCount"] == 2
+
+
+def test_unrelated_legacy_and_crl_items_can_share_one_batch():
+    payload = fixture()["payload"]
+    payload["items"].extend(fixture("video", "facebook")["payload"]["items"])
+    assert validate_batch(payload)["targetCount"] == 3
+
+
+def test_independent_facebook_and_instagram_variants_share_one_planned_episode():
+    plan, payload = episode(["facebook", "instagram", "pinterest", "youtube"])
+    assert validate_batch(payload, plan)["targetCount"] == 4
+
+
+@pytest.mark.parametrize("target", ["facebook", "instagram"])
+def test_legacy_pair_cannot_overlap_an_independent_variant(target):
+    with pytest.raises(HubError, match="fb-ig overlaps"):
+        episode(["fb-ig", target])
+
+
+@pytest.mark.parametrize("targets", [["facebook"], ["instagram"], ["facebook", "instagram"], ["fb-ig"]])
+def test_shared_meta_asset_accepts_exact_nonoverlapping_targets(targets):
+    payload = fixture()["payload"]
+    item = payload["items"][0]
+    item.update(targets=targets, manualTargets=[])
+    manifest = item["deliveryManifest"]
+    manifest["destinations"] = [{**manifest["destinations"][0], "target": target} for target in targets]
+    manifest["manifestHash"] = digest({k: v for k, v in manifest.items() if k != "manifestHash"})
+    item["contentIdentity"] = identity(variantId=item["id"], productionId=manifest["productionId"], primaryFileSha256=item["assetHash"])
+    assert validate_batch(payload, plan_for_item(item))["targetCount"] == len(targets)
+
+
+@pytest.mark.parametrize("target", ["facebook", "instagram"])
+@pytest.mark.parametrize("overlap_in_manifest", [True, False])
+def test_alias_overlap_blocks_ingest_before_network(target, overlap_in_manifest):
+    payload = fixture()["payload"]
+    item = payload["items"][0]
+    item.update(targets=sorted(["fb-ig", target]), manualTargets=[])
+    manifest = item["deliveryManifest"]
+    manifest["destinations"] = [manifest["destinations"][0]]
+    if overlap_in_manifest:
+        manifest["destinations"] = sorted([manifest["destinations"][0], {**manifest["destinations"][0], "target": target}], key=lambda row: row["target"])
+    manifest["manifestHash"] = digest({k: v for k, v in manifest.items() if k != "manifestHash"})
+    class NoTransport:
+        def request(self, *args, **kwargs):
+            pytest.fail("Overlapping Meta targets reached Hub")
+    client = HubClient("https://hub.example", "id", "secret", transport=NoTransport())
+    with pytest.raises(HubError, match="fb-ig overlaps"):
+        client.ingest(payload)
 
 
 @pytest.mark.parametrize("change", ["missing", "unplanned", "target", "production", "family", "parent", "reason", "lesson", "clips", "asset", "manifest-target"])

@@ -5,7 +5,7 @@ import copy
 import re
 
 from lib.content_novelty import validate_identity
-from lib.distribution_hub import HubError, TARGETS, _require, digest, validate_manifest
+from lib.distribution_hub import HubError, TARGETS, _require, digest, require_disjoint_meta_targets, validate_manifest
 
 PLAN_FIELDS = {"schemaVersion", "channelCode", "contentType", "identity", "strategy", "variants"}
 # Final renders may change these fields, but must preserve the planned lesson.
@@ -24,6 +24,7 @@ def _targets(values, *, canonical=True):
     _require(isinstance(values, list) and values and all(isinstance(v, str) for v in values) and
              len(values) == len(set(values)) and (not canonical or values == sorted(values)) and
              set(values) <= TARGETS, "Invalid planned destinations")
+    require_disjoint_meta_targets(values)
     return set(values)
 
 
@@ -46,6 +47,7 @@ def _plan_body(plan):
         _require(row["variantId"] not in ids and not targets.intersection(selected), "Repeated variant or episode destination")
         ids.add(row["variantId"])
         targets.update(selected)
+    require_disjoint_meta_targets(targets)
     if plan["strategy"] == "SHARED_ASSET":
         _require(len(rows) == 1 and rows[0]["variantId"] == base["variantId"] and
                  rows[0]["differenceReason"] == base["differenceReason"], "Shared asset must retain one content identity")

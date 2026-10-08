@@ -21,6 +21,14 @@ by the proposal and decision log. Its strict v1 fields are `schemaVersion: 1`,
   final identities retain the base family/production and use the base variant
   as `parentVariantId`. No destination may appear twice in the episode plan.
 
+Use `facebook` or `instagram` for an independent Meta destination. Use
+`targets: ["facebook"]` for CRL Facebook-only delivery; the channel is `CRL`.
+`fb-ig` retains the historical paired workflow. Do not combine it with either
+standalone target, even across variants of the same episode. A shared asset
+may select `["facebook", "instagram"]`; distinct captions do not require
+another content identity. See [delivery packaging](distribution-hub.md) for
+the exact caption paths and immutable manifest binding.
+
 For example, seal a draft using the existing pre-generation identity:
 
 ```python
