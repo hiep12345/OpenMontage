@@ -24,7 +24,7 @@ def handoff(item):
     source.update(contentId=item["id"], payloadHash="a" * 64, xPackageHash=None,
                   tiktokPackageHash=None, facebookInstagramPackageHash=None)
     source_hash = digest(source)
-    profile = seal({"schemaVersion": 1, "channel": {"code": "MT", "active": True, "version": 1},
+    profile = seal({"schemaVersion": 1, "channel": {"code": item["channelCode"], "active": True, "version": 1},
                     "assignments": []}, "profileRevision")
     jobs = [{"platformCode": t, "jobId": item["id"] + ":" + t, "version": 1,
              "state": "READY", "manualOnly": t in item.get("manualTargets", [])} for t in item["targets"]]
@@ -364,6 +364,40 @@ def test_complete_exact_delivery_and_resume(tmp_path, kind):
     assert before == transport.snapshot
 
 
+@pytest.mark.parametrize("kind", ["photo", "video"])
+@pytest.mark.parametrize("target,channel", [("facebook", "CRL"), ("instagram", "MT")])
+def test_independent_meta_delivery_and_resume_preserve_exact_destination(tmp_path, kind, target, channel):
+    data = fixture(kind, target)
+    item = data["payload"]["items"][0]
+    transport = Transport(handoff(item))
+    client = HubClient("https://hub.example", "id", "secret", transport=transport)
+    write_files(tmp_path, data)
+    assert item["channelCode"] == channel and item["targets"] == [target] and "manualTargets" not in item
+    assert any(f["path"] == target + "/caption.txt" for f in data["files"])
+    assert not client.readiness(channel, item["id"], target, item)["ready"]
+    first = client.deliver(channel, item["id"], target, tmp_path, item)
+    assert first["ready"] and first["uploadedChunks"] == 3 and not first["job"]["manualOnly"]
+    assert first["target"] == target and first["publicPublication"] == "NOT_ASSERTED"
+    before = copy.deepcopy(transport.snapshot)
+    transport.calls.clear()
+    resumed = client.deliver(channel, item["id"], target, tmp_path, item)
+    assert resumed["ready"] and resumed["uploadedChunks"] == 0
+    assert all(method == "GET" for method, _, _ in transport.calls)
+    assert transport.snapshot == before
+
+
+@pytest.mark.parametrize("target", ["facebook", "instagram"])
+def test_reviewed_target_overlap_is_rejected_without_rewriting_legacy_handoff(target):
+    item = fixture()["payload"]["items"][0]
+    snapshot = handoff(item)
+    reviewed = copy.deepcopy(item)
+    reviewed.pop("deliveryManifest")
+    reviewed["targets"] = ["fb-ig", target]
+    with pytest.raises(HubError, match="fb-ig overlaps"):
+        verify_handoff(snapshot, "MT", item["id"], reviewed)
+    assert verify_handoff(snapshot, "MT", item["id"], item) == snapshot
+
+
 @pytest.mark.parametrize("lost", ["POST", "PUT"])
 def test_lost_response_inspects_without_retransmitting(tmp_path, lost):
     data, item, transport, client = setup()
@@ -489,7 +523,7 @@ def test_redirect_and_manual_denial_never_mutate():
 
 
 @pytest.mark.parametrize("status,code", [(409, "HANDOFF_JOB_STALE"), (409, "HANDOFF_PACKAGE_REQUIRED"),
-                                        (503, "D1_READ_QUOTA_EXCEEDED")])
+                                        (503, "D1_READ_QUOTA_EXCEEDED"), (400, "META_TARGET_OVERLAP")])
 def test_public_error_codes_survive_without_response_text(status, code):
     _, item, transport, client = setup()
     transport.request = lambda *a, **kw: Response({"code": code, "error": "private body"}, status)

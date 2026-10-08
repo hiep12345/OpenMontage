@@ -42,6 +42,23 @@ separate next actions. These reports do not run database scans or create timers.
 
 ## Reviewed inputs and explicit operations
 
+Targets include `facebook`, `instagram`, legacy paired `fb-ig`, `pinterest`,
+`youtube`, `x`, `tiktok` and `amz`. CosyRoom Lab uses `channelCode: "CRL"`,
+`targets: ["facebook"]`, and omits `manualTargets`. It creates only a Facebook
+job; account connection and exact operator publishing approval stay in Hub.
+The `manualTargets` field is reserved for explicit manual MT Pinterest delivery;
+do not send an empty array for ordinary API targets.
+Keep historical `fb-ig` packages and receipts unchanged. Never combine `fb-ig`
+with `facebook` or `instagram` in one item or episode plan. Separate Facebook
+and Instagram targets can share one reviewed file with distinct job bindings.
+
+For standalone Meta, include a UTF-8 `facebook/caption.txt` or
+`instagram/caption.txt` in the archive and exact destination `requiredFiles`.
+If the same caption is intentionally shared, Hub also accepts
+`handoff/caption.txt`. Avoid competing caption candidates. Seal the actual
+files, archive and manifest hashes; do not attach the paired-only
+`facebookInstagram` structured video package to a standalone target.
+
 The agent prepares schema-v2 ingest metadata and deliveryManifest v1 after
 review. Canonical hashes use UTF-8 JSON with sorted object keys, retained array
 ordering, and `sha256:` prefixes. Manifest files, destinations and required-file
@@ -68,6 +85,15 @@ ingest_result = client.ingest(reviewed_payload)
 # Explicit immutable file action; root contains the manifest's relative paths.
 delivery_result = client.deliver("MT", content_id, "fb-ig", package_root,
                                  expected=reviewed_item)
+```
+
+For a reviewed CRL item, use its original content ID and exact Facebook binding:
+
+```python
+snapshot = client.inspect("CRL", crl_item["id"], expected=crl_item)
+status = client.readiness("CRL", crl_item["id"], "facebook", expected=crl_item)
+delivery_result = client.deliver("CRL", crl_item["id"], "facebook", package_root,
+                                 expected=crl_item)
 ```
 
 The BaseTool wrapper exposes the same `operation` names (`inspect`, `readiness`,
@@ -179,7 +205,11 @@ JSON with `schemaVersion:1`, `payload` (one schema-v2 ingest item), `files`
 (path/hash/size/MIME/base64), `archive` (actual ZIP hash/base64), and `expected`
 (channel/content/targets/manualTargets). The small PNG and format-like MP4 bytes,
 Drive URL and QA score are synthetic normalizer fixtures, never production or
-visual-review evidence. Both types select fb-ig and explicitly manual Pinterest.
+visual-review evidence. The default selects fb-ig and explicitly manual Pinterest,
+preserving the original fixture. `--meta-target facebook` selects only Facebook
+for CRL; `--meta-target instagram` selects only Instagram for MT. Both standalone
+variants include the destination caption path and no manual intent. Use the same
+target option when validating a snapshot or exercising the localhost fixture.
 
 Feed `fixture.payload` to Hub's real in-memory SQLite normalizer/handoff probe,
 then run `--snapshot PATH --content-type photo|video` to validate its raw readback
