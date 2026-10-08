@@ -61,6 +61,8 @@ def main():
     parser.add_argument("--snapshot", type=Path)
     parser.add_argument("--exercise-origin", help="Explicit local synthetic Hub fixture only")
     parser.add_argument("--root", type=Path)
+    parser.add_argument("--handoff", action="store_true", help="Exercise the deterministic handoff facade")
+    parser.add_argument("--reconcile-metadata", action="store_true", help="Explicit exact-request reconciliation in the synthetic test")
     args = parser.parse_args()
     data = fixture(args.content_type)
     expected = data["payload"]["items"][0]
@@ -81,8 +83,13 @@ def main():
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes(base64.b64decode(file["base64"]))
         client = HubClient(args.exercise_origin, "synthetic-service-id", "synthetic-service-secret", allow_insecure_loopback=True)
-        result = client.ingest(data["payload"])
-        result["deliveries"] = [client.deliver("MT", expected["id"], target, args.root, expected) for target in expected["targets"]]
+        if args.handoff:
+            from lib.hub_handoff import handoff
+            result = handoff(client, data["payload"], args.root, args.root / "checkpoint.json",
+                             reconcile_metadata=args.reconcile_metadata)
+        else:
+            result = client.ingest(data["payload"])
+            result["deliveries"] = [client.deliver("MT", expected["id"], target, args.root, expected) for target in expected["targets"]]
         print(json.dumps(result))
     else:
         print(json.dumps(data, ensure_ascii=False, separators=(",", ":")))

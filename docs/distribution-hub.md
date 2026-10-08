@@ -133,6 +133,45 @@ Reports include `contentIndexReadCost` from D1 metadata already returned by succ
 only; missing metadata, failed index requests or a truncated trace report unknown rows rather than zero. Synthetic test costs
 are not production measurements. All other request and account-wide usage costs remain separate.
 
+## One reviewed handoff and safe resume
+
+Use `operation: "handoff"` with the exact reviewed `payload`, package `root`,
+`project_dir`, and the reserved `delivery_plan` / shared `registry_path` where
+required. For batches with separate file trees, `roots` maps every content ID to
+its exact local root. The tool validates the whole batch and all manifest files
+before network activity, checks the authenticated Hub protocol declaration, then
+receives metadata, delivers missing immutable files and verifies every selected
+destination. It never creates a production plan, approves QA or publishes.
+
+The default checkpoint is a stable key-hash filename inside the project's
+`artifacts/hub-handoffs/`; an explicit `checkpoint_path` is also supported. Keep
+it across interruption. It contains only hashes and selected job/binding evidence,
+not a request body or credential, and binds the Hub origin, service credential ID,
+canonical body and delivery plans. An OS lock prevents concurrent execution and
+releases when the process exits. Invalid/corrupt or changed request checkpoints
+stop. This local evidence is cooperative persistence, not an authorization ledger.
+
+Before POST, the checkpoint becomes `METADATA_UNKNOWN`. A positive response is
+persisted as `METADATA_ACCEPTED` before subsequent reads. Ordinary resume never
+POSTs an accepted request and refuses an unknown request. After inspecting the
+exact original body/key and retained evidence, an explicit caller may pass
+`reconcile_metadata: true`; only then may that same request reach Hub's permanent
+receipt ledger. Do not set this flag automatically, delete the checkpoint, mint a
+new key to work around an unknown outcome, or infer a full receipt from a handoff
+readback. Known rejected 4xx requests remain prepared for an explicit later run.
+
+Accepted resumes verify fresh source/job/file bindings and the same reserved
+plan. Changed selected jobs stop before file writes; unchanged jobs inspect exact
+descriptor/chunk readback and send only missing bytes. `COMPLETE` means that all
+selected Hub files were ready at the final checks. A completed run still checks
+fresh state on resume; it never asserts social publication or changes operator
+ownership. All ordinary executions continue to produce the diagnostic report.
+
+Hub's authenticated `GET /api/ingest` must declare supported contract, ingest,
+manifest, descriptor and chunk versions. The new operation fails before mutation
+on missing or incompatible declarations; the older explicit operations remain
+available. Deploy the compatible Hub declaration before activating this client.
+
 ## Offline contract fixture
 
 `scripts/hub_contract_fixture.py --content-type photo|video` emits deterministic

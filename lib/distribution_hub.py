@@ -44,6 +44,8 @@ PUBLIC_ERROR_CODES = frozenset({
     "MEDIA_CHUNK_INVALID", "MEDIA_CHUNK_CONFLICT", "CONTENT_INDEX_QUERY_INVALID",
     "CONTENT_INDEX_CHANNEL_NOT_FOUND", "CONTENT_INDEX_TOO_LARGE", "CONTENT_INDEX_IDENTITY_INVALID",
     "CONTENT_INDEX_CHANGED",
+    "HANDOFF_PROTOCOL_UNSUPPORTED", "HANDOFF_CHECKPOINT_CONFLICT", "HANDOFF_CHECKPOINT_BUSY",
+    "HANDOFF_METADATA_UNCERTAIN",
 })
 
 
@@ -506,7 +508,7 @@ class HubClient:
                 raise HubError("ACTIVE_INTENT_CONFLICT") from None
             raise HubError("Creative preflight inputs or registry unavailable") from None
 
-    def ingest(self, payload, *, novelty_registry=None, delivery_plan=None):
+    def _validate_ingest(self, payload, *, novelty_registry=None, delivery_plan=None):
         from lib.content_delivery import validate_batch
         from lib.content_novelty import NoveltyRegistry
         _require(isinstance(payload, dict) and payload.get("schemaVersion") == 2 and
@@ -531,6 +533,12 @@ class HubClient:
             _require(archive.scheme == "https" and archive.hostname == "drive.google.com" and
                      not archive.username and not archive.password and item.get("driveFileId"), "Real archive reference required")
             validate_manifest(item.get("deliveryManifest"), {**item, "contentId": item["id"]})
+        return plan_check
+
+    def ingest(self, payload, *, novelty_registry=None, delivery_plan=None,
+               _before_send=None, _on_receipt=None):
+        plan_check = self._validate_ingest(payload, novelty_registry=novelty_registry, delivery_plan=delivery_plan)
+        plans = [] if delivery_plan is None else delivery_plan if isinstance(delivery_plan, list) else [delivery_plan]
         # A handoff readback proves selected source/job evidence, not the full
         # batch actor/key receipt. Unknown metadata outcomes remain unresolved.
         identity_channels = {item["channelCode"] for item in payload["items"] if "contentIdentity" in item}
@@ -538,7 +546,12 @@ class HubClient:
         checks = [self.novelty(item["channelCode"], item["contentIdentity"], "PRE_DELIVERY", registry_path=novelty_registry,
                                _snapshot=before[item["channelCode"]])
                   for item in payload["items"] if "contentIdentity" in item]
+        if _before_send is not None:
+            _before_send()
         receipt = self._request("POST", "/api/ingest", body=payload, key=payload["idempotencyKey"])
+        # Persist the positive response before any subsequent read can fail.
+        if _on_receipt is not None:
+            _on_receipt(receipt)
         snapshots = [self.inspect(item["channelCode"], item["id"], item) for item in payload["items"]]
         after = {channel: self.creative_index(channel, registry_path=novelty_registry) for channel in sorted(identity_channels)}
         for item in payload["items"]:
@@ -598,8 +611,13 @@ class HubClient:
                 "binding": context["binding"], "manifestHash": context.get("manifestHash"),
                 "files": statuses, "ready": all(s["ready"] for s in statuses), "publicPublication": "NOT_ASSERTED"}
 
-    def deliver(self, channel, content_id, target, root, expected=None, *, content_identity=None, novelty_registry=None):
+    def deliver(self, channel, content_id, target, root, expected=None, *, content_identity=None, novelty_registry=None,
+                expected_job=None, expected_binding=None):
         snapshot = self.inspect(channel, content_id, expected)
+        selected_job = next((j for j in snapshot["jobs"] if j["platformCode"] == target), None)
+        _require(expected_job is None or (selected_job is not None and
+                 all(selected_job.get(k) == v for k, v in expected_job.items())),
+                 "Selected job changed since handoff checkpoint")
         identity = content_identity or (expected or {}).get("contentIdentity")
         novelty_check = None
         if identity is not None:
@@ -608,6 +626,8 @@ class HubClient:
             self._verify_current_identity(channel, content_id, snapshot["source"]["sourceRevision"], identity, _index=inventory)
         row = next((r for r in snapshot["jobDeliveryEvidence"]["jobs"] if r["platformCode"] == target), None)
         _require(row is not None and row["verification"] == "VERIFIED", "Selected delivery unavailable")
+        _require(expected_binding is None or row["delivery"]["binding"] == expected_binding,
+                 "Selected binding changed since handoff checkpoint")
         context = self._context(content_id, target, row["delivery"])
         root = Path(root).resolve(strict=True)
         # Verify every local member before the first write. A missing/changed
@@ -643,7 +663,8 @@ class HubClient:
         final = self.inspect(channel, content_id, expected)
         final_row = next(r for r in final["jobDeliveryEvidence"]["jobs"] if r["platformCode"] == target)
         _require(final["sourceRecordHash"] == snapshot["sourceRecordHash"] and final_row == row and
-                 final["jobs"] == snapshot["jobs"], "Handoff changed during delivery")
+                 next(j for j in final["jobs"] if j["platformCode"] == target) == selected_job,
+                 "Handoff changed during delivery")
         verified = self.readiness(channel, content_id, target, expected)
         _require(verified["sourceRecordHash"] == snapshot["sourceRecordHash"] and verified["binding"] == context["binding"] and
                  verified["job"] == next(j for j in snapshot["jobs"] if j["platformCode"] == target) and verified["ready"],
