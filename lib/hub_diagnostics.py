@@ -85,6 +85,12 @@ class HandoffReport:
         self.value.update(finishedAt=datetime.now(timezone.utc).isoformat(),
                           state="FAILED" if error else "COMPLETE", requests=list(requests),
                           traceTruncated=len(requests) >= 5000)
+        reads = [r for r in requests if r.get("route") in {"/api/ingest/content-index", "/api/ingest/content-index/revision"}]
+        known = [r["d1ReadCost"] for r in reads if isinstance(r.get("d1ReadCost"), dict)]
+        complete_cost = len(known) == len(reads) and len(requests) < 5000 and all(type(r.get("rowsRead")) is int for r in known)
+        self.value["contentIndexReadCost"] = {"requests": len(reads), "queries": sum(r["queries"] for r in known),
+                                            "rowsRead": sum(r["rowsRead"] for r in known) if complete_cost else None,
+                                            "coverage": "CONTENT_INDEX_RESPONSES_ONLY"}
         if error is not None:
             code = getattr(error, "code", None)
             code = code if code in PUBLIC_ERROR_CODES else None

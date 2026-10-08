@@ -116,6 +116,23 @@ report the unavailable service path. Never relabel it complete using another
 destination's access or remove manual intent. Original QA FAIL, unverified audio
 and owner acceptance remain their original evidence; byte delivery changes none.
 
+## Verified creative inventory reuse
+
+Creative preflight uses the service-only `GET /api/ingest/content-index/revision?channel=MT` before every reuse.
+An unchanged stamp permits reuse of the complete, digest-verified `scope=creative` inventory in the existing novelty registry.
+Cache entries bind the exact Hub origin, channel and inventory stamp; corrupt entries are fetched again.
+Creative history excludes job states, claims, schedules and unconfirmed upload status. Current handoff/job bindings and media
+readback continue through fresh Hub requests. Cached history never grants permission to publish.
+
+A batch shares one inventory per channel before ingestion and one after ingestion, while still inspecting each accepted item.
+Only an unclassified 404 from the revision endpoint permits compatibility with an older Hub, using fresh legacy inventory reads.
+Quota, authentication, invalid response and channel-not-found errors stop the operation; they do not fall back to cached history.
+Deploy Hub migration 0079 and the compatible Hub reader before activating this producer version.
+
+Reports include `contentIndexReadCost` from D1 metadata already returned by successful index requests. It covers these responses
+only; missing metadata, failed index requests or a truncated trace report unknown rows rather than zero. Synthetic test costs
+are not production measurements. All other request and account-wide usage costs remain separate.
+
 ## Offline contract fixture
 
 `scripts/hub_contract_fixture.py --content-type photo|video` emits deterministic

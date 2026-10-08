@@ -358,7 +358,13 @@ class HubClient:
             error = HubError("Hub returned invalid JSON")
             self._diagnose(method, route, "INVALID_RESPONSE", response.status_code, error, params)
             raise error from None
-        self._diagnose(method, route, "RESPONSE_RECEIVED", response.status_code, params=params)
+        step = self._diagnose(method, route, "RESPONSE_RECEIVED", response.status_code, params=params)
+        if route in {"/api/ingest/content-index", "/api/ingest/content-index/revision"}:
+            cost = result.get("readCost")
+            if isinstance(cost, dict) and type(cost.get("queries")) is int and 0 < cost["queries"] <= 6:
+                rows = cost.get("rowsRead")
+                if rows is None or (type(rows) is int and 0 <= rows <= 9007199254740991):
+                    step["d1ReadCost"] = {"queries": cost["queries"], "rowsRead": rows}
         return result
 
     def _diagnose(self, method, route, outcome, status=None, error=None, params=None):
@@ -377,12 +383,13 @@ class HubClient:
             error.request_step = step
             error.outcome_unknown = method in {"POST", "PUT"} and (
                 outcome in {"TRANSPORT_UNKNOWN", "INVALID_RESPONSE"} or (status is not None and status >= 500))
+        return step
 
     def inspect(self, channel, content_id, expected=None):
         snapshot = self._request("GET", "/api/ingest/handoff", params={"channel": channel, "contentId": content_id})
         return verify_handoff(snapshot, channel, content_id, expected)
 
-    def content_index(self, channel):
+    def content_index(self, channel, *, scope=None):
         """Read all pages; verify the coherent revision, scope and exact cardinality."""
         from lib.content_novelty import validate_identity
         _require(isinstance(channel, str) and re.fullmatch(r"[A-Z0-9][A-Z0-9_-]{0,11}", channel), "Invalid index channel")
@@ -393,6 +400,8 @@ class HubClient:
             try:
                 while True:
                     params = {"channel": channel, "limit": 200}
+                    if scope == "creative":
+                        params["scope"] = scope
                     if cursor:
                         params["cursor"] = cursor
                     page = self._request("GET", "/api/ingest/content-index", params=params)
@@ -403,7 +412,11 @@ class HubClient:
                              "Invalid or incomplete content index")
                     if first is None:
                         first = {k: page[k] for k in ("schemaVersion", "channelCode", "active", "revision", "total", "coverage")}
-                    _require(all(page[k] == first[k] for k in first), "Content index changed during pagination")
+                        if scope == "creative":
+                            _require(page.get("scope") == "creative" and _hash(page.get("inventoryRevision")) and
+                                     page["coverage"].get("operationalJobState") == "NOT_INCLUDED", "Invalid creative inventory stamp")
+                            first.update(scope="creative", inventoryRevision=page["inventoryRevision"])
+                    _require(all(page.get(k) == first[k] for k in first), "Content index changed during pagination")
                     for item in page["items"]:
                         _require(isinstance(item, dict) and isinstance(item.get("id"), str) and item["id"] not in seen and
                                  item.get("kind") in {"hub", "external"} and isinstance(item.get("title"), str), "Duplicate or invalid index row")
@@ -430,14 +443,62 @@ class HubClient:
                     continue
                 raise
 
-    def novelty(self, channel, identity, stage="PRE_GENERATION", *, registry_path=None, reserve=False, delivery_plan=None):
+    def _verify_cached_inventory(self, snapshot, channel, validator):
+        from lib.content_novelty import validate_identity
+        _require(isinstance(snapshot, dict) and snapshot.get("schemaVersion") == 1 and snapshot.get("scope") == "creative" and
+                 snapshot.get("channelCode") == channel and snapshot.get("inventoryRevision") == validator["inventoryRevision"] and
+                 type(snapshot.get("active")) is int and snapshot["active"] == validator["active"] and
+                 isinstance(snapshot.get("coverage"), dict) and snapshot["coverage"].get("completeHubInventory") is True and
+                 snapshot["coverage"].get("operationalJobState") == "NOT_INCLUDED" and isinstance(snapshot.get("items"), list) and
+                 type(snapshot.get("total")) is int and 0 <= snapshot["total"] <= 10000 and len(snapshot["items"]) == snapshot["total"] and
+                 snapshot.get("nextCursor") is None, "Invalid cached creative inventory")
+        identifiers = []
+        for item in snapshot["items"]:
+            _require(isinstance(item, dict) and isinstance(item.get("id"), str) and item.get("kind") in {"hub", "external"} and
+                     isinstance(item.get("title"), str), "Invalid cached creative row")
+            if item.get("identity") is not None:
+                validate_identity(item["identity"])
+            identifiers.append(item["id"])
+        _require(identifiers == sorted(set(identifiers)) and
+                 digest({k: snapshot[k] for k in ("channelCode", "active", "coverage", "items")}) == snapshot.get("revision"),
+                 "Cached creative inventory digest mismatch")
+
+    def creative_index(self, channel, *, registry_path=None):
+        """Fresh cheap validator; cache only verified creative history, never job authority."""
+        from lib.content_novelty import NoveltyRegistry
+        _require(isinstance(channel, str) and re.fullmatch(r"[A-Z0-9][A-Z0-9_-]{0,11}", channel), "Invalid index channel")
+        try:
+            validator = self._request("GET", "/api/ingest/content-index/revision", params={"channel": channel})
+        except HubHttpError as error:
+            if error.status == 404 and error.code is None:
+                return self.content_index(channel)
+            raise
+        _require(validator.get("schemaVersion") == 1 and validator.get("scope") == "creative" and validator.get("channelCode") == channel and
+                 type(validator.get("active")) is int and validator["active"] in (0, 1) and _hash(validator.get("inventoryRevision")),
+                 "Invalid creative inventory validator")
+        registry = NoveltyRegistry(registry_path)
+        try:
+            cached = registry.cached_inventory(self.origin, channel, validator["inventoryRevision"])
+            if cached is not None:
+                try:
+                    self._verify_cached_inventory(cached, channel, validator)
+                    return cached
+                except (HubError, ValueError, TypeError, KeyError):
+                    pass  # Corrupt derived cache is rebuilt; network failures are never hidden.
+            snapshot = self.content_index(channel, scope="creative")
+            registry.cache_inventory(self.origin, snapshot)
+            return snapshot
+        finally:
+            registry.close()
+
+    def novelty(self, channel, identity, stage="PRE_GENERATION", *, registry_path=None, reserve=False, delivery_plan=None, _snapshot=None):
         from lib.content_novelty import check_content
         _require(type(reserve) is bool, "Invalid production reservation flag")
         if delivery_plan is not None or (reserve and channel == "MT"):
             from lib.content_delivery import validate_plan
             validate_plan(delivery_plan, channel=channel, identity=identity)
         try:
-            return check_content(self, channel, identity, stage, registry_path, reserve, delivery_plan)
+            return check_content(self, channel, identity, stage, registry_path, reserve, delivery_plan, _snapshot)
         except HubError:
             raise
         except (ValueError, OSError, sqlite3.Error) as error:
@@ -472,13 +533,18 @@ class HubClient:
             validate_manifest(item.get("deliveryManifest"), {**item, "contentId": item["id"]})
         # A handoff readback proves selected source/job evidence, not the full
         # batch actor/key receipt. Unknown metadata outcomes remain unresolved.
-        checks = [self.novelty(item["channelCode"], item["contentIdentity"], "PRE_DELIVERY", registry_path=novelty_registry)
+        identity_channels = {item["channelCode"] for item in payload["items"] if "contentIdentity" in item}
+        before = {channel: self.creative_index(channel, registry_path=novelty_registry) for channel in sorted(identity_channels)}
+        checks = [self.novelty(item["channelCode"], item["contentIdentity"], "PRE_DELIVERY", registry_path=novelty_registry,
+                               _snapshot=before[item["channelCode"]])
                   for item in payload["items"] if "contentIdentity" in item]
         receipt = self._request("POST", "/api/ingest", body=payload, key=payload["idempotencyKey"])
         snapshots = [self.inspect(item["channelCode"], item["id"], item) for item in payload["items"]]
+        after = {channel: self.creative_index(channel, registry_path=novelty_registry) for channel in sorted(identity_channels)}
         for item in payload["items"]:
             if "contentIdentity" in item:
-                self._verify_current_identity(item["channelCode"], item["id"], item["sourceRevision"], item["contentIdentity"])
+                self._verify_current_identity(item["channelCode"], item["id"], item["sourceRevision"], item["contentIdentity"],
+                                              _index=after[item["channelCode"]])
         result = {"receipt": receipt, "recoveredByReadback": False, "handoffs": snapshots, "publicPublication": "NOT_ASSERTED"}
         if checks:
             result["noveltyChecks"] = checks
@@ -486,8 +552,8 @@ class HubClient:
             result["deliveryPlanCheck"] = plan_check
         return result
 
-    def _verify_current_identity(self, channel, content_id, source_revision, identity):
-        index = self.content_index(channel)
+    def _verify_current_identity(self, channel, content_id, source_revision, identity, *, _index=None):
+        index = _index if _index is not None else self.creative_index(channel)
         indexed = next((c for c in index["items"] if c["kind"] == "hub" and c["id"] == content_id), None)
         _require(indexed is not None and indexed.get("sourceRevision") == source_revision and
                  indexed.get("identityHash") == digest(identity), "Creative identity differs from its accepted source")
@@ -537,8 +603,9 @@ class HubClient:
         identity = content_identity or (expected or {}).get("contentIdentity")
         novelty_check = None
         if identity is not None:
-            novelty_check = self.novelty(channel, identity, "PRE_DELIVERY", registry_path=novelty_registry)
-            self._verify_current_identity(channel, content_id, snapshot["source"]["sourceRevision"], identity)
+            inventory = self.creative_index(channel, registry_path=novelty_registry)
+            novelty_check = self.novelty(channel, identity, "PRE_DELIVERY", registry_path=novelty_registry, _snapshot=inventory)
+            self._verify_current_identity(channel, content_id, snapshot["source"]["sourceRevision"], identity, _index=inventory)
         row = next((r for r in snapshot["jobDeliveryEvidence"]["jobs"] if r["platformCode"] == target), None)
         _require(row is not None and row["verification"] == "VERIFIED", "Selected delivery unavailable")
         context = self._context(content_id, target, row["delivery"])
