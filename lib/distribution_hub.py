@@ -20,9 +20,38 @@ _HASH = re.compile(r"sha256:[a-f0-9]{64}\Z")
 class HubError(ValueError):
     """Safe error text: never includes credentials, response bodies or URLs."""
 
+    code = "LOCAL_VALIDATION_FAILED"
+
 
 class HubTransportError(HubError):
-    pass
+    code = "TRANSPORT_ERROR"
+
+
+# Only code-defined public diagnostics are exposed. Never echo response text,
+# arbitrary codes, request headers, URLs or a provider exception.
+PUBLIC_ERROR_CODES = frozenset({
+    "ACTION_FAILED", "AUTH_REQUIRED", "FORBIDDEN", "MANUAL_ONLY", "UNEXPECTED_ERROR",
+    "LOCAL_VALIDATION_FAILED", "TRANSPORT_ERROR", "ACTIVE_INTENT_CONFLICT", "MEDIA_CLAIM_REQUIRED",
+    "INGEST_CHANNEL_INVALID", "INGEST_SERVICE_REQUIRED", "SOURCE_STORAGE_UNAVAILABLE", "SOURCE_NOT_READY",
+    "SOURCE_BYTES_INVALID", "SOURCE_CHUNK_INVALID", "SOURCE_FETCH_FAILED", "SOURCE_HASH_MISMATCH",
+    "D1_READ_QUOTA_EXCEEDED", "INGEST_CHANNEL_NOT_FOUND", "YOUTUBE_PACKAGE_REQUIRED",
+    "HANDOFF_INVALID", "HANDOFF_CONTENT_NOT_FOUND", "HANDOFF_JOB_STALE", "HANDOFF_JOB_INVALID",
+    "HANDOFF_STALE", "HANDOFF_KEY_CONFLICT", "HANDOFF_INCOMPLETE", "HANDOFF_TARGET_UNAVAILABLE",
+    "HANDOFF_PACKAGE_REQUIRED", "HANDOFF_PACKAGE_EVIDENCE_INVALID", "HANDOFF_DELIVERY_MANIFEST_INVALID",
+    "HANDOFF_X_PACKAGE_INVALID", "HANDOFF_TIKTOK_PACKAGE_INVALID", "HANDOFF_FACEBOOK_INSTAGRAM_PACKAGE_INVALID",
+    "MEDIA_MANIFEST_REQUIRED", "SOURCE_PACKAGE_MISSING", "SOURCE_PACKAGE_STALE", "DESTINATION_DELIVERY_INVALID",
+    "MEDIA_INVALID", "MEDIA_BINDING_STALE", "MEDIA_DESCRIPTOR_INVALID", "MEDIA_DESCRIPTOR_CONFLICT",
+    "MEDIA_CHUNK_INVALID", "MEDIA_CHUNK_CONFLICT", "CONTENT_INDEX_QUERY_INVALID",
+    "CONTENT_INDEX_CHANNEL_NOT_FOUND", "CONTENT_INDEX_TOO_LARGE", "CONTENT_INDEX_IDENTITY_INVALID",
+    "CONTENT_INDEX_CHANGED",
+})
+
+
+class HubHttpError(HubError):
+    def __init__(self, status, code=None):
+        self.status = status
+        self.code = code if isinstance(code, str) and code in PUBLIC_ERROR_CODES else None
+        super().__init__(f"Hub HTTP {status}" + (f" [{self.code}]" if self.code else ""))
 
 
 def _require(condition, message):
@@ -294,6 +323,7 @@ class HubClient:
         self._headers = {"CF-Access-Client-Id": client_id, "CF-Access-Client-Secret": client_secret}
         self.transport = transport if transport is not None else requests.Session()
         self.timeout = timeout
+        self.diagnostics = []
 
     def _request(self, method, route, *, params=None, body=None, data=None, key=None):
         headers = dict(self._headers)
@@ -308,12 +338,45 @@ class HubClient:
             response = self.transport.request(method, self.origin + route, params=params, headers=headers,
                                               data=data, timeout=self.timeout, allow_redirects=False)
         except requests.RequestException:
-            raise HubTransportError("Hub transport failed; inspect exact request before resuming") from None
-        _require(200 <= response.status_code < 300, f"Hub HTTP {response.status_code}")
+            error = HubTransportError("Hub transport failed; inspect exact request before resuming")
+            self._diagnose(method, route, "TRANSPORT_UNKNOWN", error=error, params=params)
+            raise error from None
+        if not 200 <= response.status_code < 300:
+            try:
+                failure = response.json()
+            except ValueError:
+                failure = None
+            code = failure.get("code") if isinstance(failure, dict) else None
+            error = HubHttpError(response.status_code, code)
+            self._diagnose(method, route, "HTTP_ERROR", response.status_code, error, params)
+            raise error
         try:
-            return response.json()
+            result = response.json()
+            if not isinstance(result, dict):
+                raise ValueError("Invalid Hub response envelope")
         except (ValueError, requests.exceptions.JSONDecodeError):
-            raise HubError("Hub returned invalid JSON") from None
+            error = HubError("Hub returned invalid JSON")
+            self._diagnose(method, route, "INVALID_RESPONSE", response.status_code, error, params)
+            raise error from None
+        self._diagnose(method, route, "RESPONSE_RECEIVED", response.status_code, params=params)
+        return result
+
+    def _diagnose(self, method, route, outcome, status=None, error=None, params=None):
+        # A bounded request trace is evidence of responses, not successful QA,
+        # full handoff verification, or publication.
+        step = {"method": method, "route": route, "outcome": outcome, "httpStatus": status}
+        for name in ("channel", "contentId", "target", "binding", "path", "chunkIndex"):
+            value = (params or {}).get(name)
+            if (name == "chunkIndex" and type(value) is int and value >= 0) or (
+                    isinstance(value, str) and re.fullmatch(r"[A-Za-z0-9_./:-]{1,180}", value) and "://" not in value):
+                step[name] = value
+        if len(self.diagnostics) < 5000:
+            self.diagnostics.append(step)
+        if error is not None:
+            step["errorCode"] = getattr(error, "code", None)
+            error.request_step = step
+            error.outcome_unknown = method in {"POST", "PUT"} and (
+                outcome in {"TRANSPORT_UNKNOWN", "INVALID_RESPONSE"} or (status is not None and status >= 500))
 
     def inspect(self, channel, content_id, expected=None):
         snapshot = self._request("GET", "/api/ingest/handoff", params={"channel": channel, "contentId": content_id})
@@ -362,7 +425,8 @@ class HubClient:
                 return {**first, "items": items, "nextCursor": None}
             except HubError as error:
                 # Retrying only an idempotent read can recover an explicit page conflict.
-                if attempt == 0 and str(error) in {"Hub HTTP 409", "Content index changed during pagination"}:
+                page_conflict = isinstance(error, HubHttpError) and error.status == 409 and error.code in {None, "CONTENT_INDEX_CHANGED"}
+                if attempt == 0 and (page_conflict or str(error) == "Content index changed during pagination"):
                     continue
                 raise
 
@@ -374,6 +438,8 @@ class HubClient:
             validate_plan(delivery_plan, channel=channel, identity=identity)
         try:
             return check_content(self, channel, identity, stage, registry_path, reserve, delivery_plan)
+        except HubError:
+            raise
         except (ValueError, OSError, sqlite3.Error) as error:
             if str(error).startswith("ACTIVE_INTENT_CONFLICT"):
                 raise HubError("ACTIVE_INTENT_CONFLICT") from None

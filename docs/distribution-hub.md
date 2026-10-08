@@ -22,6 +22,24 @@ an input artifact or committed file. Redirects are rejected and response bodies
 are excluded from errors. The client introduces no new dependency or background
 process. Its zero generation cost does not claim that Hub hosting/storage is free.
 
+Every tool execution first writes a local RUNNING report, then retains its result
+in `projects/hub-handoffs/artifacts/hub-handoffs/<run-id>.json`. Pass `project_dir`
+to retain it inside a production's ignored project artifacts instead. `reportPath`
+and `reportPersisted` are returned even on failure. Reports retain reviewed versions,
+bounded request steps, safe HTTP status/code, request/key fingerprints and next
+action; they exclude credentials, payload text and response bodies. An interrupted
+process leaves RUNNING evidence. Failure to create initial evidence stops before
+network activity. Failure to finish evidence never disguises a confirmed mutation
+as a retryable failure. A report is diagnostic evidence, not a replay instruction.
+
+Known public codes such as `HANDOFF_JOB_STALE` survive the client unchanged; unknown
+codes/bodies remain private. An explicit D1 provider code 7500 may be returned as
+`503 D1_READ_QUOTA_EXCEEDED`; generic server failures are not called quota errors.
+Network loss, invalid successful JSON and server errors during a mutation leave
+its outcome unknown and require exact request reconciliation. There is no automatic
+metadata replay. Missing package, stale binding and authorization failures have
+separate next actions. These reports do not run database scans or create timers.
+
 ## Reviewed inputs and explicit operations
 
 The agent prepares schema-v2 ingest metadata and deliveryManifest v1 after
