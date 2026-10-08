@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from lib.content_novelty import NoveltyRegistry, digest, normalize_recipe, source_formula_key, validate_identity
-from lib.distribution_hub import HubClient, HubError
+from lib.distribution_hub import HubClient, HubError, HubHttpError
 
 
 def identity(**extra):
@@ -27,6 +27,12 @@ class Transport:
         self.pages = pages
         self.calls = []
     def request(self, method, url, **kwargs):
+        if url.endswith("/api/ingest/content-index/revision"):
+            class LegacyResponse:
+                status_code = 404
+                def json(self):
+                    return {}
+            return LegacyResponse()
         self.calls.append((method, url, kwargs))
         assert method == "GET" and kwargs["allow_redirects"] is False
         page = self.pages.pop(0)
@@ -39,6 +45,103 @@ class Transport:
 
 def client(pages):
     return HubClient("https://hub.example", "id", "secret", transport=Transport(pages))
+
+
+class CreativeTransport:
+    def __init__(self):
+        self.epoch = 1
+        self.calls = []
+        self.status = 200
+        self.channel = "MT"
+        self.items = []
+
+    def request(self, method, url, **kwargs):
+        self.calls.append((method, url, kwargs))
+        assert method == "GET"
+        stamp = digest({"epoch": self.epoch, "channel": self.channel})
+        if url.endswith("/revision"):
+            body = {"schemaVersion": 1, "scope": "creative", "channelCode": self.channel, "active": 1,
+                    "inventoryRevision": stamp, "readCost": {"queries": 1, "rowsRead": 2}}
+        else:
+            assert kwargs["params"]["scope"] == "creative"
+            body = snapshot(self.items)
+            body["channelCode"] = self.channel
+            body["coverage"]["operationalJobState"] = "NOT_INCLUDED"
+            body["revision"] = digest({k: body[k] for k in ("channelCode", "active", "coverage", "items")})
+            body.update(scope="creative", inventoryRevision=stamp, readCost={"queries": 6, "rowsRead": 150})
+        if self.status != 200:
+            body = {"code": "D1_READ_QUOTA_EXCEEDED"}
+        class Response:
+            status_code = self.status
+            def json(inner):
+                return copy.deepcopy(body)
+        return Response()
+
+
+def test_creative_cache_checks_live_stamp_and_reuses_complete_inventory_across_calls(tmp_path):
+    transport = CreativeTransport()
+    c = HubClient("https://hub.example", "id", "secret", transport=transport)
+    path = tmp_path / "cache.sqlite"
+    first = c.creative_index("MT", registry_path=path)
+    assert len(transport.calls) == 2
+    assert c.creative_index("MT", registry_path=path) == first
+    assert len(transport.calls) == 3  # Warm call is only the indexed validator.
+    assert c.diagnostics[-1]["d1ReadCost"] == {"queries": 1, "rowsRead": 2}
+    transport.epoch += 1
+    changed = c.creative_index("MT", registry_path=path)
+    assert changed["inventoryRevision"] != first["inventoryRevision"] and len(transport.calls) == 5
+    transport.status = 503
+    with pytest.raises(HubHttpError) as error:
+        c.creative_index("MT", registry_path=path)
+    assert error.value.code == "D1_READ_QUOTA_EXCEEDED" and len(transport.calls) == 6
+
+
+@pytest.mark.parametrize("mutation", [{"revision": "sha256:" + "f" * 64}, {"total": True}, {"scope": "operational"}, {"nextCursor": "more"}, {"items": [{"id": "x", "kind": "hub", "title": "corrupt"}]}])
+def test_corrupt_creative_cache_is_rebuilt_only_after_fresh_validator(tmp_path, mutation):
+    transport = CreativeTransport()
+    c = HubClient("https://hub.example", "id", "secret", transport=transport)
+    path = tmp_path / "cache.sqlite"
+    first = c.creative_index("MT", registry_path=path)
+    registry = NoveltyRegistry(path)
+    try:
+        registry.cache_inventory(c.origin, {**first, **mutation})
+    finally:
+        registry.close()
+    assert c.creative_index("MT", registry_path=path) == first
+    assert len(transport.calls) == 4
+
+
+def test_cache_is_partitioned_by_origin_channel_and_legacy_reads_are_never_cached(tmp_path):
+    path = tmp_path / "cache.sqlite"
+    transport = CreativeTransport()
+    c = HubClient("https://hub.example", "id", "secret", transport=transport)
+    c.creative_index("MT", registry_path=path)
+    other = HubClient("https://other.example", "id", "secret", transport=transport)
+    other.creative_index("MT", registry_path=path)
+    assert len(transport.calls) == 4
+    transport.channel = "OTHER"
+    other.creative_index("OTHER", registry_path=path)
+    assert len(transport.calls) == 6
+    legacy = client([snapshot([]), snapshot([])])
+    legacy.creative_index("MT", registry_path=path)
+    legacy.creative_index("MT", registry_path=path)
+    assert len(legacy.transport.calls) == 2
+
+
+def test_creative_pages_with_changed_or_missing_stamp_restart_once_before_any_cache_write(tmp_path):
+    data = snapshot([{"id": "a", "kind": "hub", "title": "A", "identity": None},
+                     {"id": "b", "kind": "external", "title": "B", "identity": None}])
+    data["coverage"]["operationalJobState"] = "NOT_INCLUDED"
+    data["revision"] = digest({k: data[k] for k in ("channelCode", "active", "coverage", "items")})
+    data.update(scope="creative", inventoryRevision=digest("stamp-1"))
+    first = {**data, "items": data["items"][:1], "nextCursor": "page2"}
+    changed = {**data, "items": data["items"][1:], "inventoryRevision": digest("stamp-2")}
+    c = client([first, changed, data])
+    assert c.content_index("MT", scope="creative")["items"] == data["items"]
+    assert len(c.transport.calls) == 3
+    missing = {k: v for k, v in changed.items() if k != "inventoryRevision"}
+    with pytest.raises(HubError, match="changed during pagination"):
+        client([first, missing, first, missing]).content_index("MT", scope="creative")
 
 
 def test_complete_pagination_scope_and_revision():

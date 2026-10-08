@@ -112,10 +112,26 @@ class NoveltyRegistry:
           CREATE TABLE IF NOT EXISTS decisions(cache_key TEXT PRIMARY KEY,body TEXT NOT NULL);
           CREATE TABLE IF NOT EXISTS delivery_plans(production_id TEXT PRIMARY KEY,channel TEXT NOT NULL,
             plan_hash TEXT NOT NULL,body TEXT NOT NULL);
+          CREATE TABLE IF NOT EXISTS creative_index_cache(origin TEXT NOT NULL,channel TEXT NOT NULL,
+            inventory_revision TEXT NOT NULL,body TEXT NOT NULL,PRIMARY KEY(origin,channel));
         """)
 
     def close(self):
         self.db.close()
+
+    def cached_inventory(self, origin, channel, inventory_revision):
+        row = self.db.execute("SELECT body FROM creative_index_cache WHERE origin=? AND channel=? AND inventory_revision=?",
+                              (origin, channel, inventory_revision)).fetchone()
+        try:
+            return json.loads(row[0]) if row else None
+        except (ValueError, TypeError):
+            return None
+
+    def cache_inventory(self, origin, snapshot):
+        with self.db:
+            self.db.execute("INSERT INTO creative_index_cache VALUES(?,?,?,?) ON CONFLICT(origin,channel) DO UPDATE SET "
+                            "inventory_revision=excluded.inventory_revision,body=excluded.body",
+                            (origin, snapshot["channelCode"], snapshot["inventoryRevision"], canonical(snapshot)))
 
     def sync(self, snapshot):
         channel = snapshot["channelCode"]
@@ -307,10 +323,10 @@ class NoveltyRegistry:
         return {**report, "cacheHit": False}
 
 
-def check_content(client, channel, identity, stage, registry_path=None, reserve=False, delivery_plan=None):
+def check_content(client, channel, identity, stage, registry_path=None, reserve=False, delivery_plan=None, snapshot=None):
     registry = NoveltyRegistry(registry_path)
     try:
-        snapshot = client.content_index(channel)
+        snapshot = snapshot if snapshot is not None else client.creative_index(channel, registry_path=registry_path)
         registry.sync(snapshot)
         report = registry.evaluate(channel, identity, stage)
         if reserve:

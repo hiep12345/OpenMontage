@@ -62,6 +62,8 @@ class Transport:
         self.after_write = None
 
     def request(self, method, url, **kwargs):
+        if url.endswith("/api/ingest/content-index/revision"):
+            return Response({}, status=404)  # Explicitly exercise compatibility with the legacy Hub.
         self.calls.append((method, url, kwargs))
         assert kwargs["allow_redirects"] is False
         if url.endswith("/api/ingest/handoff"):
@@ -201,6 +203,72 @@ def test_identity_ingest_and_byte_delivery_refresh_and_verify_source(tmp_path):
     assert delivered["ready"] and delivered["noveltyCheck"]["status"] == "REVIEW_REQUIRED"
 
 
+def test_four_variant_batch_shares_one_preflight_and_one_post_ingest_snapshot(tmp_path):
+    from test_content_delivery import episode, reserve_finished
+    from test_content_novelty import CreativeTransport, snapshot
+    plan, payload = episode()
+    class BatchTransport(CreativeTransport):
+        def request(self, method, url, **kwargs):
+            if url.endswith("/api/ingest") and method == "POST":
+                self.calls.append((method, url, kwargs))
+                assert json.loads(kwargs["data"]) == payload
+                self.epoch += 1
+                self.items = [{"id": i["id"], "kind": "hub", "title": i["title"], "identity": i["contentIdentity"],
+                               "identityHash": digest(i["contentIdentity"]), "sourceRevision": i["sourceRevision"]}
+                              for i in payload["items"]]
+                return Response({"created": 4})
+            if url.endswith("/api/ingest/handoff"):
+                self.calls.append((method, url, kwargs))
+                item = next(i for i in payload["items"] if i["id"] == kwargs["params"]["contentId"])
+                return Response(handoff(item))
+            return super().request(method, url, **kwargs)
+    registry = tmp_path / "batch.sqlite"
+    reserve_finished(registry, plan)
+    transport = BatchTransport()
+    c = HubClient("https://hub.example", "id", "secret", transport=transport)
+    result = c.ingest(payload, novelty_registry=registry, delivery_plan=plan)
+    assert len(result["handoffs"]) == len(result["noveltyChecks"]) == 4
+    assert len([u for _, u, _ in transport.calls if u.endswith("/content-index")]) == 2
+    assert len([u for _, u, _ in transport.calls if u.endswith("/revision")]) == 2
+    assert len([u for m, u, _ in transport.calls if m == "POST"]) == 1
+    assert result["publicPublication"] == "NOT_ASSERTED"
+
+
+def test_delivery_uses_selected_registry_and_one_verified_inventory(tmp_path, monkeypatch):
+    from test_content_delivery import plan_for_item, reserve_finished
+    import lib.content_novelty as novelty
+    data, item, _, _ = identity_setup()
+    class CachedIdentityTransport(IdentityTransport):
+        def request(self, method, url, **kwargs):
+            stamp = digest("accepted-inventory")
+            if url.endswith("/revision"):
+                self.calls.append((method, url, kwargs))
+                return Response({"schemaVersion": 1, "scope": "creative", "channelCode": "MT", "active": 1, "inventoryRevision": stamp})
+            response = super().request(method, url, **kwargs)
+            if url.endswith("/content-index") and kwargs["params"].get("scope") == "creative":
+                body = response.json()
+                body["coverage"]["operationalJobState"] = "NOT_INCLUDED"
+                body["revision"] = digest({k: body[k] for k in ("channelCode", "active", "coverage", "items")})
+                body.update(scope="creative", inventoryRevision=stamp)
+                return Response(body)
+            return response
+    transport = CachedIdentityTransport(item)
+    transport.accepted = True
+    c = HubClient("https://hub.example", "id", "secret", transport=transport)
+    registry = tmp_path / "selected.sqlite"
+    reserve_finished(registry, plan_for_item(item))
+    def forbidden_default():
+        raise AssertionError("Selected registry must never open the default registry")
+    monkeypatch.setattr(novelty, "default_registry", forbidden_default)
+    write_files(tmp_path, data)
+    assert c.deliver("MT", item["id"], "fb-ig", tmp_path, item, novelty_registry=registry)["ready"]
+    assert len([u for _, u, _ in transport.calls if u.endswith("/content-index")]) == 1
+    transport.calls.clear()
+    assert c.deliver("MT", item["id"], "fb-ig", tmp_path, item, novelty_registry=registry)["ready"]
+    assert len([u for _, u, _ in transport.calls if u.endswith("/content-index")]) == 0
+    assert len([u for _, u, _ in transport.calls if u.endswith("/revision")]) == 1
+
+
 def test_missing_index_blocks_identity_ingest_before_any_write(tmp_path):
     from test_content_delivery import plan_for_item, reserve_finished
     data, item, transport, client = identity_setup()
@@ -250,7 +318,7 @@ def test_quota_during_real_creative_preflight_survives_to_report(tmp_path, monke
     assert not result.success and report["errorCode"] == "D1_READ_QUOTA_EXCEEDED"
     assert report["httpStatus"] == 503 and report["nextAction"] == "WAIT_FOR_QUOTA_RESET"
     assert report["requests"][0]["errorCode"] == report["errorCode"]
-    assert report["failedStep"]["route"] == "/api/ingest/content-index"
+    assert report["failedStep"]["route"] == "/api/ingest/content-index/revision"
     assert len(calls) == 1 and calls[0][0] == "GET"
 
 

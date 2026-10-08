@@ -1,13 +1,28 @@
 import sys
 import json
 import pytest
+
 import requests
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from lib.hub_diagnostics import HandoffReport
 from tools.publishers.distribution_hub import DistributionHub
 from tools.base_tool import ToolStatus
 from tools.tool_registry import ToolRegistry
+
+
+def test_report_measures_only_known_index_response_cost_and_preserves_unknown(tmp_path):
+    report = HandoffReport({"project_dir": str(tmp_path), "operation": "inspect"})
+    steps = [{"route": "/api/ingest/content-index/revision", "d1ReadCost": {"queries": 1, "rowsRead": 2}},
+             {"route": "/api/ingest/content-index", "d1ReadCost": {"queries": 6, "rowsRead": 150}},
+             {"route": "/api/ingest/handoff"}]
+    report.finish({}, requests=steps)
+    cost = json.loads(report.path.read_text())["contentIndexReadCost"]
+    assert cost == {"requests": 2, "queries": 7, "rowsRead": 152, "coverage": "CONTENT_INDEX_RESPONSES_ONLY"}
+    steps.append({"route": "/api/ingest/content-index/revision", "outcome": "HTTP_ERROR"})
+    report.finish({}, requests=steps)
+    assert json.loads(report.path.read_text())["contentIndexReadCost"]["rowsRead"] is None
 
 
 def test_optional_tool_discovery():
