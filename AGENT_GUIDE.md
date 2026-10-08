@@ -79,6 +79,23 @@ Agent reads pipeline manifest (YAML) -> reads stage director skill (MD)
 
 **Python = tools + persistence.** No orchestration logic, creative decisions, review logic, or checkpoint policy in Python code. The agent makes those decisions guided by instructions.
 
+### Hub-bound MT episode identity
+
+Before reserving or generating a new Mix Therapy episode that will go to Hub,
+record its delivery plan in `projects/<id>/artifacts/delivery-plan.json` and carry
+the sealed `planHash` in the proposal and decision log. Read
+`docs/content-delivery.md`. Decide one episode's stable family/production/master
+IDs and destination-to-file mapping at proposal time. Caption/package differences
+alone use one `SHARED_ASSET` content ID; intentionally different rendered videos
+use `PLATFORM_VARIANTS` with planned IDs, reasons and common master lineage.
+Do not improvise these identities at packaging time or treat each destination as
+a new lesson. Pass this plan to the maintained pre-generation reservation and
+final batch ingest. The producer rejects missing, replaced, incomplete or
+inconsistent plans before Hub calls. Review the actual renders and exact files
+at the normal pipeline gates; plan validation does not establish visual QA or
+authorize social publication. Preserve historical requests/receipts; never
+retroactively attach a plan to a running or completed production.
+
 Core loop:
 
 1. Select a pipeline.

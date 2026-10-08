@@ -29,7 +29,8 @@ class DistributionHub(BaseTool):
         "channel": {"type": "string"}, "content_id": {"type": "string"}, "target": {"type": "string"},
         "root": {"type": "string"}, "expected": {"type": "object"}, "payload": {"type": "object"},
         "identity": {"type": "object"}, "stage": {"enum": ["PRE_GENERATION", "PRE_DELIVERY"]},
-        "registry_path": {"type": "string"}, "reserve": {"type": "boolean"}}}
+        "registry_path": {"type": "string"}, "reserve": {"type": "boolean"},
+        "delivery_plan": {"oneOf": [{"type": "object"}, {"type": "array", "items": {"type": "object"}}]}}}
     output_schema = {"type": "object"}
 
     @staticmethod
@@ -48,12 +49,13 @@ class DistributionHub(BaseTool):
             client = self._client()
             operation = inputs["operation"]
             if operation == "ingest":
-                result = client.ingest(inputs["payload"])
+                result = client.ingest(inputs["payload"], delivery_plan=inputs.get("delivery_plan"), novelty_registry=inputs.get("registry_path"))
             elif operation == "content_index":
                 result = client.content_index(inputs["channel"])
             elif operation == "novelty":
                 result = client.novelty(inputs["channel"], inputs["identity"], inputs.get("stage", "PRE_GENERATION"),
-                                       registry_path=inputs.get("registry_path"), reserve=inputs.get("reserve", False))
+                                       registry_path=inputs.get("registry_path"), reserve=inputs.get("reserve", False),
+                                       delivery_plan=inputs.get("delivery_plan"))
             elif operation in {"inspect", "readiness", "deliver"}:
                 args = [inputs["channel"], inputs["content_id"]]
                 if operation != "inspect":

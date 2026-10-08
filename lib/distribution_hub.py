@@ -6,6 +6,7 @@ import json
 import math
 import re
 import sqlite3
+from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -85,6 +86,19 @@ def bytes_digest(value):
 
 def _hash(value):
     return isinstance(value, str) and bool(_HASH.fullmatch(value))
+
+
+def _hub_timestamp(value):
+    # Hub normalizes accepted ISO instants with Date.toISOString(). Compare its
+    # UTC millisecond representation without rewriting the permanent request.
+    _require(isinstance(value, str) and re.fullmatch(
+        r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?(?:Z|[+-](?:[01]\d|2[0-3]):[0-5]\d)", value),
+        "Invalid reviewed source timestamp")
+    try:
+        instant = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        return instant.astimezone(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+    except (ValueError, OverflowError):
+        raise HubError("Invalid reviewed source timestamp") from None
 
 
 def _sealed(value, key):
@@ -214,7 +228,8 @@ def verify_handoff(snapshot, channel, content_id, expected=None):
                  expected.get("contentType") == source["contentType"], "Expected identity mismatch")
         for key in ("assetHash", "qaReceiptHash", "distributionRevision", "sourceRevision", "sourceUpdatedAt", "driveFileId"):
             if key in expected:
-                _require(source.get(key) == expected[key], "Reviewed source mismatch")
+                wanted_value = _hub_timestamp(expected[key]) if key == "sourceUpdatedAt" else expected[key]
+                _require(source.get(key) == wanted_value, "Reviewed source mismatch")
         wanted = expected.get("targets")
         _require(isinstance(wanted, list) and wanted and len(set(wanted)) == len(wanted) and set(wanted) <= TARGETS, "Invalid selected targets")
         expected_manifest = expected.get("deliveryManifest")
@@ -351,23 +366,40 @@ class HubClient:
                     continue
                 raise
 
-    def novelty(self, channel, identity, stage="PRE_GENERATION", *, registry_path=None, reserve=False):
+    def novelty(self, channel, identity, stage="PRE_GENERATION", *, registry_path=None, reserve=False, delivery_plan=None):
         from lib.content_novelty import check_content
         _require(type(reserve) is bool, "Invalid production reservation flag")
+        if delivery_plan is not None or (reserve and channel == "MT"):
+            from lib.content_delivery import validate_plan
+            validate_plan(delivery_plan, channel=channel, identity=identity)
         try:
-            return check_content(self, channel, identity, stage, registry_path, reserve)
+            return check_content(self, channel, identity, stage, registry_path, reserve, delivery_plan)
         except (ValueError, OSError, sqlite3.Error) as error:
             if str(error).startswith("ACTIVE_INTENT_CONFLICT"):
                 raise HubError("ACTIVE_INTENT_CONFLICT") from None
             raise HubError("Creative preflight inputs or registry unavailable") from None
 
-    def ingest(self, payload, *, novelty_registry=None):
+    def ingest(self, payload, *, novelty_registry=None, delivery_plan=None):
+        from lib.content_delivery import validate_batch
+        from lib.content_novelty import NoveltyRegistry
         _require(isinstance(payload, dict) and payload.get("schemaVersion") == 2 and
                  payload.get("sourceSystem") == "production-pipeline" and
                  isinstance(payload.get("idempotencyKey"), str) and 16 <= len(payload["idempotencyKey"]) <= 180 and
                  isinstance(payload.get("items"), list) and 0 < len(payload["items"]) <= 100, "Invalid schema-v2 ingest")
-        _require(len({item.get("id") for item in payload["items"]}) == len(payload["items"]), "Duplicate ingest identity")
+        plan_check = validate_batch(payload, delivery_plan)
+        plans = [] if delivery_plan is None else delivery_plan if isinstance(delivery_plan, list) else [delivery_plan]
+        if plans:
+            registry = NoveltyRegistry(novelty_registry)
+            try:
+                for plan in plans:
+                    registry.verify_delivery_plan(plan)
+            except (ValueError, OSError, sqlite3.Error):
+                raise HubError("Delivery requires the exact reserved plan and finished production intent") from None
+            finally:
+                registry.close()
         for item in payload["items"]:
+            if "sourceUpdatedAt" in item:
+                _hub_timestamp(item["sourceUpdatedAt"])
             archive = urlsplit(item.get("driveUrl", ""))
             _require(archive.scheme == "https" and archive.hostname == "drive.google.com" and
                      not archive.username and not archive.password and item.get("driveFileId"), "Real archive reference required")
@@ -384,6 +416,8 @@ class HubClient:
         result = {"receipt": receipt, "recoveredByReadback": False, "handoffs": snapshots, "publicPublication": "NOT_ASSERTED"}
         if checks:
             result["noveltyChecks"] = checks
+        if plans:
+            result["deliveryPlanCheck"] = plan_check
         return result
 
     def _verify_current_identity(self, channel, content_id, source_revision, identity):

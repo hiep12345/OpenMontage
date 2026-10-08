@@ -102,6 +102,58 @@ def setup(content_type="photo"):
     return data, item, transport, client
 
 
+@pytest.mark.parametrize("reviewed,normalized", [
+    ("2026-10-07T22:07:02.123456+07:00", "2026-10-07T15:07:02.123Z"),
+    ("2026-10-07T15:07:02.123999Z", "2026-10-07T15:07:02.123Z"),
+    ("2026-10-07T15:07:02Z", "2026-10-07T15:07:02.000Z"),
+])
+def test_ingest_accepts_hub_normalized_timestamp_without_rewriting_request(reviewed, normalized):
+    data, item, transport, client = setup()
+    item["sourceUpdatedAt"] = reviewed
+    actual = copy.deepcopy(item)
+    actual["sourceUpdatedAt"] = normalized
+    transport.snapshot = handoff(actual)
+    original = copy.deepcopy(data["payload"])
+    result = client.ingest(data["payload"])
+    assert result["handoffs"][0]["source"]["sourceUpdatedAt"] == normalized
+    posts = [kw for method, url, kw in transport.calls if method == "POST" and url.endswith("/api/ingest")]
+    assert len(posts) == 1 and json.loads(posts[0]["data"]) == original and data["payload"] == original
+
+
+def test_legacy_ingest_replays_unsorted_targets_without_rewriting_payload():
+    data, item, transport, client = setup()
+    item["targets"].reverse()
+    original = copy.deepcopy(data["payload"])
+    transport.snapshot = handoff(item)
+    client.ingest(data["payload"])
+    client.ingest(data["payload"])
+    posts = [kw for method, url, kw in transport.calls if method == "POST" and url.endswith("/api/ingest")]
+    assert len(posts) == 2 and all(json.loads(p["data"]) == original for p in posts)
+    assert data["payload"] == original
+
+
+def test_timestamp_normalization_preserves_instant_and_full_source_hash_checks():
+    data, item, _, _ = setup()
+    item["sourceUpdatedAt"] = "2026-10-07T22:07:02.123456+07:00"
+    actual = copy.deepcopy(item)
+    actual["sourceUpdatedAt"] = "2026-10-07T15:07:02.124Z"
+    with pytest.raises(HubError, match="Reviewed source mismatch"):
+        verify_handoff(handoff(actual), "MT", item["id"], item)
+    snapshot = handoff(item)
+    snapshot["source"]["sourceUpdatedAt"] = "2026-10-07T15:07:02.123Z"
+    with pytest.raises(HubError):
+        verify_handoff(snapshot, "MT", item["id"], item)
+
+
+@pytest.mark.parametrize("value", ["2026-10-07T22:07:02", "2026-13-07T00:00:00Z", "secret", None])
+def test_invalid_reviewed_timestamp_remains_fail_closed(value):
+    _, item, _, _ = setup()
+    snapshot = handoff(item)
+    item["sourceUpdatedAt"] = value
+    with pytest.raises(HubError, match="timestamp"):
+        verify_handoff(snapshot, "MT", item["id"], item)
+
+
 class IdentityTransport(Transport):
     def __init__(self, item):
         super().__init__(handoff(item))
@@ -129,15 +181,19 @@ def identity_setup():
     from test_content_novelty import identity
     data = fixture("photo")
     item = data["payload"]["items"][0]
-    item["contentIdentity"] = identity(primaryFileSha256=item["deliveryManifest"]["asset"]["sha256"])
+    item["contentIdentity"] = identity(variantId=item["id"], productionId=item["deliveryManifest"]["productionId"],
+                                       primaryFileSha256=item["deliveryManifest"]["asset"]["sha256"])
     transport = IdentityTransport(item)
     return data, item, transport, HubClient("https://hub.example", "id", "secret", transport=transport)
 
 
 def test_identity_ingest_and_byte_delivery_refresh_and_verify_source(tmp_path):
+    from test_content_delivery import plan_for_item, reserve_finished
     data, item, transport, client = identity_setup()
     registry = tmp_path / "shared.sqlite"
-    result = client.ingest(data["payload"], novelty_registry=registry)
+    plan = plan_for_item(item)
+    reserve_finished(registry, plan)
+    result = client.ingest(data["payload"], novelty_registry=registry, delivery_plan=plan)
     assert result["noveltyChecks"][0]["stage"] == "PRE_DELIVERY"
     assert transport.calls[0][0] == "GET" and transport.calls[1][0] == "POST"
     write_files(tmp_path, data)
@@ -146,19 +202,25 @@ def test_identity_ingest_and_byte_delivery_refresh_and_verify_source(tmp_path):
 
 
 def test_missing_index_blocks_identity_ingest_before_any_write(tmp_path):
+    from test_content_delivery import plan_for_item, reserve_finished
     data, item, transport, client = identity_setup()
     transport.index_available = False
+    plan = plan_for_item(item)
+    reserve_finished(tmp_path / "missing.sqlite", plan)
     with pytest.raises(HubError):
-        client.ingest(data["payload"], novelty_registry=tmp_path / "missing.sqlite")
+        client.ingest(data["payload"], novelty_registry=tmp_path / "missing.sqlite", delivery_plan=plan)
     assert all(m == "GET" for m, _, _ in transport.calls)
 
 
 def test_identity_readback_mismatch_is_not_success_and_blocks_media_write(tmp_path):
+    from test_content_delivery import plan_for_item, reserve_finished
     data, item, transport, client = identity_setup()
     transport.accept_identity = False
     registry = tmp_path / "wrong.sqlite"
+    plan = plan_for_item(item)
+    reserve_finished(registry, plan)
     with pytest.raises(HubError, match="accepted source"):
-        client.ingest(data["payload"], novelty_registry=registry)
+        client.ingest(data["payload"], novelty_registry=registry, delivery_plan=plan)
     assert len([m for m, u, _ in transport.calls if m == "POST" and u.endswith('/api/ingest')]) == 1
     transport.calls.clear()
     with pytest.raises(HubError, match="accepted source"):

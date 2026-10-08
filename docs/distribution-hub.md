@@ -11,6 +11,8 @@ The additive `content_index` and `novelty` operations also expose the
 all-status Hub retrieval, test/remake identities, shared reservations, protected
 access reuse and the required pre-generation/pre-delivery workflow. Novelty
 review remains separate from operator approval and public publication.
+See [episode delivery plans](content-delivery.md) for the required
+pre-generation/final-batch binding on new MT identity ingest.
 
 An administrator provisions `DISTRIBUTION_HUB_ORIGIN` (an HTTPS origin without
 path/query), `DISTRIBUTION_HUB_CLIENT_ID`, and `DISTRIBUTION_HUB_CLIENT_SECRET`
@@ -53,7 +55,10 @@ delivery_result = client.deliver("MT", content_id, "fb-ig", package_root,
 The BaseTool wrapper exposes the same `operation` names (`inspect`, `readiness`,
 `ingest`, `deliver`). Read operations take `channel`, `content_id`, optional
 `expected`; readiness/delivery also require `target`, and delivery requires `root`.
-Ingest takes `payload`. Every operation returns `ToolResult`. It is discoverable
+Ingest takes `payload` and, for new MT identity batches, the reserved
+`delivery_plan` (one sealed plan or a list) and optional shared `registry_path`.
+Novelty reservations take one `delivery_plan`. Every operation returns
+`ToolResult`. It is discoverable
 through the normal registry and optional when service configuration is missing.
 An ingest transport loss stops with an unresolved metadata outcome. Inspecting
 an existing handoff does not prove that the full batch, actor and permanent key
