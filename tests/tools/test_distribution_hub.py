@@ -165,3 +165,26 @@ def test_local_exact_file_failure_retains_its_safe_reason(monkeypatch, tmp_path)
     report = json.loads(Path(result.data["reportPath"]).read_text())
     assert report["error"] == "Exact local file size or hash differs"
     assert report["reviewedVersions"] == [{"contentId": "fixture", "sourceRevision": 3, "distributionRevision": 2}]
+
+
+def test_reports_keep_real_fixture_sha256_revisions_and_numeric_job_versions(tmp_path):
+    from scripts.hub_contract_fixture import fixture
+    from lib.hub_diagnostics import HandoffReport
+    item = fixture("photo")["payload"]["items"][0]
+    report = HandoffReport({"operation": "inspect", "project_dir": str(tmp_path), "expected": item})
+    report.finish(result={"source": {"contentId": item["id"], "sourceRevision": item["sourceRevision"]},
+                          "jobs": [{"platformCode": "fb-ig", "version": 3}]})
+    saved = json.loads(report.path.read_text())
+    assert saved["reviewedVersions"][0]["sourceRevision"] == item["sourceRevision"]
+    assert saved["reviewedVersions"][0]["distributionRevision"] == item["distributionRevision"]
+    assert saved["versions"][0]["sourceRevision"] == item["sourceRevision"]
+    assert saved["versions"][0]["jobs"][0]["version"] == 3
+
+
+def test_report_revisions_reject_arbitrary_text(tmp_path):
+    from lib.hub_diagnostics import HandoffReport
+    report = HandoffReport({"operation": "inspect", "project_dir": str(tmp_path),
+                            "expected": {"sourceRevision": "private-token", "distributionRevision": "https://private"}})
+    saved = json.loads(report.path.read_text())
+    assert saved["reviewedVersions"][0]["sourceRevision"] is None
+    assert saved["reviewedVersions"][0]["distributionRevision"] is None

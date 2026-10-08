@@ -22,6 +22,12 @@ def _version(value):
     return value if type(value) is int and value >= 0 else None
 
 
+def _revision(value):
+    if isinstance(value, str) and re.fullmatch(r"sha256:[a-f0-9]{64}", value):
+        return value
+    return _version(value)
+
+
 def next_action(code, unknown=False):
     if unknown:
         return "RECONCILE_EXACT_REQUEST"
@@ -59,8 +65,8 @@ class HandoffReport:
             if isinstance(payload.get("items"), list):
                 reviewed = [item for item in payload["items"] if isinstance(item, dict)]
         self.value["reviewedVersions"] = [{"contentId": _label(item.get("id")),
-                                           "sourceRevision": _version(item.get("sourceRevision")),
-                                           "distributionRevision": _version(item.get("distributionRevision"))}
+                                           "sourceRevision": _revision(item.get("sourceRevision")),
+                                           "distributionRevision": _revision(item.get("distributionRevision"))}
                                           for item in reviewed]
         self._write()
 
@@ -96,7 +102,7 @@ class HandoffReport:
             self.value["nextAction"] = "OPERATOR_INSPECTION" if result.get("ready") is True else "INSPECT_REPORT"
             snapshots = result.get("handoffs", []) or ([result] if "source" in result else [])
             self.value["versions"] = [{"contentId": _label(row.get("source", {}).get("contentId")),
-                                       "sourceRevision": _version(row.get("source", {}).get("sourceRevision")),
+                                       "sourceRevision": _revision(row.get("source", {}).get("sourceRevision")),
                                        "jobs": [{"target": _label(job.get("platformCode")), "version": _version(job.get("version"))}
                                                 for job in row.get("jobs", [])]}
                                       for row in snapshots]
