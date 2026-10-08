@@ -256,3 +256,32 @@ def test_unrelated_job_update_during_selected_delivery_is_not_a_false_failure(tm
         seal(transport.snapshot["jobDeliveryEvidence"])
     transport.after_write = update_other_job
     assert client.deliver("MT", item["id"], "fb-ig", root, item)["ready"] and changed
+
+
+def test_batch_separate_roots_and_second_item_failure_are_checked_before_first_post(tmp_path):
+    photo, pitem, ptransport, _, proot, checkpoint = prepared(tmp_path / "photo", "photo")
+    video, vitem, vtransport, _, vroot, _ = prepared(tmp_path / "video", "video")
+    payload = {**photo["payload"], "items": [pitem, vitem]}
+    calls = []
+    ptransport.calls = vtransport.calls = calls
+    class BatchTransport:
+        def request(self, method, url, **kwargs):
+            if url.endswith("/api/ingest"):
+                calls.append((method, url, kwargs))
+                return Response({"ready": True, "contract": CONTRACT} if method == "GET" else {"created": 2})
+            query = kwargs["params"]
+            transport = ptransport if query["contentId"] == pitem["id"] else vtransport
+            return transport.request(method, url, **kwargs)
+    client = HubClient("https://hub.example", "private-id", "private-secret", transport=BatchTransport())
+    roots = {pitem["id"]: proot, vitem["id"]: vroot}
+    member = vroot / video["files"][-1]["path"]
+    original = member.read_bytes()
+    member.write_bytes(b"broken")
+    with pytest.raises(HubError):
+        handoff(client, payload, None, checkpoint, roots=roots)
+    assert not calls
+    member.write_bytes(original)
+    result = handoff(client, payload, None, checkpoint, roots=roots)
+    assert result["ready"] and len(result["readiness"]) == 4
+    assert {r["contentId"] for r in result["readiness"]} == {pitem["id"], vitem["id"]}
+    assert len([m for m, u, _ in calls if m == "POST" and u.endswith("/api/ingest")]) == 1
