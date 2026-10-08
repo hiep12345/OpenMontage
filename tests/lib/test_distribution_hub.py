@@ -228,6 +228,49 @@ def test_identity_readback_mismatch_is_not_success_and_blocks_media_write(tmp_pa
     assert all(m == "GET" for m, _, _ in transport.calls)
 
 
+@pytest.mark.parametrize("operation", ["novelty", "ingest"])
+def test_quota_during_real_creative_preflight_survives_to_report(tmp_path, monkeypatch, operation):
+    from test_content_delivery import plan_for_item, reserve_finished
+    from tools.publishers.distribution_hub import DistributionHub
+    data, item, transport, client = identity_setup()
+    plan = plan_for_item(item)
+    registry = tmp_path / "shared.sqlite"
+    reserve_finished(registry, plan)
+    calls = []
+    def quota(method, url, **kwargs):
+        calls.append((method, url))
+        return Response({"code": "D1_READ_QUOTA_EXCEEDED", "error": "private quota body"}, 503)
+    transport.request = quota
+    monkeypatch.setattr(DistributionHub, "_client", staticmethod(lambda: client))
+    result = DistributionHub().execute({"operation": operation, "channel": "MT", "identity": item["contentIdentity"],
+                                       "stage": "PRE_DELIVERY", "payload": data["payload"],
+                                       **({"delivery_plan": plan} if operation == "ingest" else {}),
+                                       "registry_path": str(registry), "project_dir": str(tmp_path)})
+    report = json.loads(Path(result.data["reportPath"]).read_text(encoding="utf-8"))
+    assert not result.success and report["errorCode"] == "D1_READ_QUOTA_EXCEEDED"
+    assert report["httpStatus"] == 503 and report["nextAction"] == "WAIT_FOR_QUOTA_RESET"
+    assert report["requests"][0]["errorCode"] == report["errorCode"]
+    assert report["failedStep"]["route"] == "/api/ingest/content-index"
+    assert len(calls) == 1 and calls[0][0] == "GET"
+
+
+def test_coded_index_page_conflict_restarts_once_and_never_retries_other_conflicts():
+    from test_content_novelty import snapshot
+    body = snapshot([])
+    _, _, transport, client = setup()
+    responses = [Response({"code": "CONTENT_INDEX_CHANGED"}, 409), Response(body)]
+    transport.request = lambda *a, **kw: responses.pop(0)
+    assert client.content_index("MT")["items"] == [] and not responses
+    responses = [Response({"code": "CONTENT_INDEX_CHANGED"}, 409)] * 2
+    with pytest.raises(HubError, match="CONTENT_INDEX_CHANGED"):
+        client.content_index("MT")
+    assert not responses
+    responses = [Response({"code": "CONTENT_INDEX_TOO_LARGE"}, 409), Response(body)]
+    with pytest.raises(HubError, match="CONTENT_INDEX_TOO_LARGE"):
+        client.content_index("MT")
+    assert len(responses) == 1
+
+
 def write_files(root, data):
     import base64
     for file in data["files"]:
@@ -375,6 +418,48 @@ def test_redirect_and_manual_denial_never_mutate():
     with pytest.raises(HubError, match="^Hub HTTP 403$"): client.readiness("MT", item["id"], "pinterest", item)
     transport.request = lambda *a, **kw: Response({"error": "secret content"}, 302)
     with pytest.raises(HubError, match="^Hub HTTP 302$"): client.inspect("MT", item["id"])
+
+
+@pytest.mark.parametrize("status,code", [(409, "HANDOFF_JOB_STALE"), (409, "HANDOFF_PACKAGE_REQUIRED"),
+                                        (503, "D1_READ_QUOTA_EXCEEDED")])
+def test_public_error_codes_survive_without_response_text(status, code):
+    _, item, transport, client = setup()
+    transport.request = lambda *a, **kw: Response({"code": code, "error": "private body"}, status)
+    with pytest.raises(HubError) as raised:
+        client.inspect("MT", item["id"])
+    assert raised.value.code == code and raised.value.status == status
+    assert str(raised.value) == f"Hub HTTP {status} [{code}]"
+    assert "private body" not in str(client.diagnostics)
+
+
+@pytest.mark.parametrize("body", [{"code": "SECRET_TOKEN", "error": "private"}, [], None, {"code": []}])
+def test_unknown_error_body_is_not_a_diagnostic(body):
+    _, item, transport, client = setup()
+    transport.request = lambda *a, **kw: Response(body, 403)
+    with pytest.raises(HubError, match="^Hub HTTP 403$") as raised:
+        client.inspect("MT", item["id"])
+    assert raised.value.code is None
+
+
+def test_server_error_and_invalid_success_leave_mutation_outcome_unknown():
+    _, _, transport, client = setup()
+    transport.request = lambda *a, **kw: Response({"code": "UNEXPECTED_ERROR"}, 500)
+    with pytest.raises(HubError) as raised:
+        client._request("POST", "/api/ingest", body={"schemaVersion": 2})
+    assert raised.value.outcome_unknown
+    class InvalidResponse:
+        status_code = 200
+        def json(self):
+            raise ValueError("private response")
+    transport.request = lambda *a, **kw: InvalidResponse()
+    with pytest.raises(HubError) as raised:
+        client._request("POST", "/api/ingest", body={"schemaVersion": 2})
+    assert raised.value.outcome_unknown and "private" not in str(raised.value)
+    for body in (None, [], "private body"):
+        transport.request = lambda *a, **kw: Response(body)
+        with pytest.raises(HubError) as raised:
+            client._request("POST", "/api/ingest", body={"schemaVersion": 2})
+        assert raised.value.outcome_unknown and "private" not in str(raised.value)
 
 
 @pytest.mark.parametrize("bad", ["duplicate", "negative", "out_of_range", "ready_lie", "chunk_hash"])
