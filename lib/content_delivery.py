@@ -80,7 +80,7 @@ def validate_plan(plan, *, channel=None, identity=None):
     return plan
 
 
-def validate_batch(payload, delivery_plan=None):
+def validate_batch(payload, delivery_plan=None, *, caption_freshness=True):
     """Check the whole sealed batch before any Hub reads or writes."""
     _require(isinstance(payload, dict) and isinstance(payload.get("items"), list) and
              0 < len(payload["items"]) <= 100 and all(isinstance(i, dict) for i in payload["items"]), "Invalid delivery batch")
@@ -129,5 +129,8 @@ def validate_batch(payload, delivery_plan=None):
         covered.update(actual)
     _require(all(i["id"] in covered for i in items if i.get("channelCode") == "MT" and "contentIdentity" in i),
              "MT identity ingest requires its reserved delivery plan")
+    from lib.caption_links import validate_qa
+    for item in items:
+        validate_qa(item, freshness=caption_freshness)
     return {"planHashes": [p["planHash"] for p in plans], "episodeCount": len(plans),
             "variantCount": len(covered), "targetCount": sum(len(i["targets"]) for i in items)}

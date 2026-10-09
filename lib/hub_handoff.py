@@ -101,7 +101,7 @@ def handoff(client, payload, root, checkpoint_path, *, roots=None, delivery_plan
     # Freeze the exact canonical body before validation, checkpoints and sending.
     payload = json.loads(canonical_json(payload))
     delivery_plan = json.loads(canonical_json(delivery_plan))
-    client._validate_ingest(payload, novelty_registry=registry_path, delivery_plan=delivery_plan)
+    client._validate_ingest(payload, novelty_registry=registry_path, delivery_plan=delivery_plan, _caption_freshness=False)
     items = payload["items"]
     if roots is not None and (not isinstance(roots, dict) or set(roots) != {i["id"] for i in items}):
         raise HubError("Local roots must cover the exact reviewed batch")
@@ -112,6 +112,10 @@ def handoff(client, payload, root, checkpoint_path, *, roots=None, delivery_plan
         # Validate the whole batch, including caption/receipt members, before network.
         for file in item["deliveryManifest"]["files"]:
             describe_file(_local_file(selected_root, file), file)
+        from lib.caption_links import validate_qa
+        # Accepted checkpoint resumes are byte verification and readback;
+        # HubClient checks freshness before any possibly new metadata POST.
+        validate_qa(item, selected_root, freshness=False)
     path = Path(checkpoint_path)
     if path.is_symlink():
         _fail("Unsafe handoff checkpoint", "HANDOFF_CHECKPOINT_CONFLICT")
