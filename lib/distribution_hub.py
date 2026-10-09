@@ -504,14 +504,11 @@ class HubClient:
         finally:
             registry.close()
 
-    def novelty(self, channel, identity, stage="PRE_GENERATION", *, registry_path=None, reserve=False, delivery_plan=None, _snapshot=None):
-        from lib.content_novelty import check_content
-        _require(type(reserve) is bool, "Invalid production reservation flag")
-        if delivery_plan is not None or (reserve and channel == "MT"):
-            from lib.content_delivery import validate_plan
-            validate_plan(delivery_plan, channel=channel, identity=identity)
+    def novelty(self, channel, identity, stage="PRE_GENERATION", *, registry_path=None, reserve=False, delivery_plan=None, _snapshot=None, local_only=False):
+        from lib.content_novelty import check_content, validate_reservation_request
+        validate_reservation_request(channel, identity, stage, reserve, delivery_plan, local_only)
         try:
-            return check_content(self, channel, identity, stage, registry_path, reserve, delivery_plan, _snapshot)
+            return check_content(self, channel, identity, stage, registry_path, reserve, delivery_plan, _snapshot, local_only=local_only)
         except HubError:
             raise
         except (ValueError, OSError, sqlite3.Error) as error:
@@ -521,7 +518,7 @@ class HubClient:
 
     def _validate_ingest(self, payload, *, novelty_registry=None, delivery_plan=None, _caption_freshness=True):
         from lib.content_delivery import validate_batch
-        from lib.content_novelty import NoveltyRegistry
+        from lib.content_novelty import NoveltyRegistry, assert_hub_delivery_scope
         _require(isinstance(payload, dict) and payload.get("schemaVersion") == 2 and
                  payload.get("sourceSystem") == "production-pipeline" and
                  isinstance(payload.get("idempotencyKey"), str) and 16 <= len(payload["idempotencyKey"]) <= 180 and
@@ -544,6 +541,10 @@ class HubClient:
             _require(archive.scheme == "https" and archive.hostname == "drive.google.com" and
                      not archive.username and not archive.password and item.get("driveFileId"), "Real archive reference required")
             validate_manifest(item.get("deliveryManifest"), {**item, "contentId": item["id"]})
+        try:
+            assert_hub_delivery_scope([i["deliveryManifest"]["productionId"] for i in payload["items"]], novelty_registry)
+        except (ValueError, OSError, sqlite3.Error):
+            raise HubError("Hub ingest scope unavailable or production is local-only") from None
         return plan_check
 
     def ingest(self, payload, *, novelty_registry=None, delivery_plan=None,

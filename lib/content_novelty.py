@@ -95,6 +95,36 @@ def default_registry():
     return Path(os.environ.get("DISTRIBUTION_NOVELTY_REGISTRY", str(Path.home() / ".codex/state/openmontage-content-novelty.sqlite")))
 
 
+def validate_reservation_request(channel, identity, stage, reserve, delivery_plan, local_only):
+    """Validate declared scope before credentials, Hub reads or intent writes."""
+    from lib.distribution_hub import HubError
+    if type(reserve) is not bool or type(local_only) is not bool:
+        raise HubError("Invalid production reservation flag")
+    if local_only and (channel != "MT" or not reserve or stage != "PRE_GENERATION" or delivery_plan is not None):
+        raise HubError("Local-only reservation requires MT PRE_GENERATION reserve without a delivery plan")
+    if delivery_plan is not None or (reserve and channel == "MT" and not local_only):
+        from lib.content_delivery import validate_plan
+        validate_plan(delivery_plan, channel=channel, identity=identity)
+
+
+def assert_hub_delivery_scope(production_ids, registry_path=None):
+    """Read scope even for legacy ingest; do not create a registry for old deliveries."""
+    path = Path(registry_path) if registry_path is not None else default_registry()
+    try:
+        path.stat()
+    except FileNotFoundError:
+        return
+    db = sqlite3.connect(path.resolve().as_uri() + "?mode=ro", uri=True, timeout=15)
+    try:
+        if not db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='local_only_intents'").fetchone():
+            return
+        for production_id in set(production_ids):
+            if db.execute("SELECT 1 FROM local_only_intents WHERE production_id=?", (production_id,)).fetchone():
+                raise ValueError("Local-only production cannot be ingested into Hub")
+    finally:
+        db.close()
+
+
 class NoveltyRegistry:
     def __init__(self, path=None):
         self.path = Path(path) if path is not None else default_registry()
@@ -112,6 +142,11 @@ class NoveltyRegistry:
           CREATE TABLE IF NOT EXISTS decisions(cache_key TEXT PRIMARY KEY,body TEXT NOT NULL);
           CREATE TABLE IF NOT EXISTS delivery_plans(production_id TEXT PRIMARY KEY,channel TEXT NOT NULL,
             plan_hash TEXT NOT NULL,body TEXT NOT NULL);
+          CREATE TABLE IF NOT EXISTS local_only_intents(production_id TEXT PRIMARY KEY);
+          CREATE TRIGGER IF NOT EXISTS prevent_local_only_delivery_plan
+            BEFORE INSERT ON delivery_plans
+            WHEN EXISTS(SELECT 1 FROM local_only_intents WHERE production_id=NEW.production_id)
+            BEGIN SELECT RAISE(ABORT, 'LOCAL_ONLY_DELIVERY_FORBIDDEN'); END;
           CREATE TABLE IF NOT EXISTS creative_index_cache(origin TEXT NOT NULL,channel TEXT NOT NULL,
             inventory_revision TEXT NOT NULL,body TEXT NOT NULL,PRIMARY KEY(origin,channel));
         """)
@@ -176,8 +211,10 @@ class NoveltyRegistry:
         with self.db:
             self.db.execute("INSERT OR IGNORE INTO facts VALUES(?,?,?,?)", (channel, "local", body["id"], canonical(body)))
 
-    def reserve(self, channel, identity, delivery_plan=None):
+    def reserve(self, channel, identity, delivery_plan=None, *, local_only=False):
         validate_identity(identity)
+        if type(local_only) is not bool or (local_only and (channel != "MT" or delivery_plan is not None)):
+            raise ValueError("Invalid local-only reservation scope")
         if delivery_plan is not None:
             from lib.content_delivery import validate_plan
             validate_plan(delivery_plan, channel=channel, identity=identity)
@@ -193,6 +230,9 @@ class NoveltyRegistry:
             if prior:
                 if prior[0] != digest(identity) or prior[1] not in {"PREPARED", "GENERATING", "SUBMITTED_UNKNOWN"} or prior[2] != channel:
                     raise ValueError("Production identity or completed intent cannot be silently replaced")
+                marked_local = self.db.execute("SELECT 1 FROM local_only_intents WHERE production_id=?", (identity["productionId"],)).fetchone() is not None
+                if marked_local != local_only:
+                    raise ValueError("Reserved production scope cannot be changed")
             if delivery_plan is not None:
                 planned = self.db.execute("SELECT channel,plan_hash,body FROM delivery_plans WHERE production_id=?", (identity["productionId"],)).fetchone()
                 if planned:
@@ -204,10 +244,13 @@ class NoveltyRegistry:
                     self.db.execute("INSERT INTO delivery_plans VALUES(?,?,?,?)", (identity["productionId"], channel, delivery_plan["planHash"], canonical(delivery_plan)))
             if not prior:
                 self.db.execute("INSERT INTO intents VALUES(?,?,?,?,?,'PREPARED',1)", (identity["productionId"], channel, key, digest(identity), canonical(identity)))
+                if local_only:
+                    self.db.execute("INSERT INTO local_only_intents VALUES(?)", (identity["productionId"],))
                 self.db.execute("INSERT INTO intent_events(production_id,state,version,body) VALUES(?,'PREPARED',1,?)", (identity["productionId"], canonical(identity)))
             self.db.commit()
             return {"state": prior[1] if prior else "PREPARED", "version": prior[3] if prior else 1,
-                    "productionId": identity["productionId"], **({"deliveryPlanHash": delivery_plan["planHash"]} if delivery_plan is not None else {})}
+                    "productionId": identity["productionId"], **({"deliveryPlanHash": delivery_plan["planHash"]} if delivery_plan is not None else {}),
+                    **({"deliveryScope": "LOCAL_ONLY"} if local_only else {})}
         except sqlite3.IntegrityError:
             self.db.rollback()
             raise ValueError("ACTIVE_INTENT_CONFLICT: another production owns this story") from None
@@ -219,6 +262,8 @@ class NoveltyRegistry:
         """Read the immutable pre-generation binding; never retroactively seal it."""
         from lib.content_delivery import validate_plan
         validate_plan(plan)
+        if self.db.execute("SELECT 1 FROM local_only_intents WHERE production_id=?", (plan["identity"]["productionId"],)).fetchone():
+            raise ValueError("Local-only production has no reserved Hub delivery plan")
         row = self.db.execute("SELECT p.channel,p.plan_hash,p.body,i.state FROM delivery_plans p JOIN intents i ON i.production_id=p.production_id WHERE p.production_id=?",
                               (plan["identity"]["productionId"],)).fetchone()
         if row != (plan["channelCode"], plan["planHash"], canonical(plan), "FINISHED"):
@@ -323,7 +368,8 @@ class NoveltyRegistry:
         return {**report, "cacheHit": False}
 
 
-def check_content(client, channel, identity, stage, registry_path=None, reserve=False, delivery_plan=None, snapshot=None):
+def check_content(client, channel, identity, stage, registry_path=None, reserve=False, delivery_plan=None, snapshot=None, *, local_only=False):
+    validate_reservation_request(channel, identity, stage, reserve, delivery_plan, local_only)
     registry = NoveltyRegistry(registry_path)
     try:
         snapshot = snapshot if snapshot is not None else client.creative_index(channel, registry_path=registry_path)
@@ -332,7 +378,7 @@ def check_content(client, channel, identity, stage, registry_path=None, reserve=
         if reserve:
             if snapshot["active"] != 1:
                 raise ValueError("Inactive channel cannot reserve a production")
-            report["intent"] = registry.reserve(channel, identity, delivery_plan)
+            report["intent"] = registry.reserve(channel, identity, delivery_plan, local_only=local_only)
         registry.record(channel, identity)
         return report
     finally:

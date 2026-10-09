@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from lib.content_novelty import NoveltyRegistry
+from lib.content_novelty import NoveltyRegistry, validate_reservation_request
 from lib.hub_access import configured_client
 
 
@@ -16,7 +16,8 @@ def main():
     parser.add_argument("--channel", default="MT")
     parser.add_argument("--registry")
     parser.add_argument("--identity")
-    parser.add_argument("--delivery-plan", help="Sealed proposal plan required for a new MT generation reservation")
+    parser.add_argument("--delivery-plan", help="Sealed proposal plan required for a Hub-bound MT generation reservation")
+    parser.add_argument("--local-only", action="store_true", help="Explicit MT local-only reservation; no Hub delivery plan or delivery authority")
     parser.add_argument("--stage", choices=["PRE_GENERATION", "PRE_DELIVERY"], default="PRE_GENERATION")
     parser.add_argument("--reserve", action="store_true")
     parser.add_argument("--packet")
@@ -25,17 +26,17 @@ def main():
     parser.add_argument("--state", choices=["GENERATING", "SUBMITTED_UNKNOWN", "FINISHED", "CANCELLED"])
     parser.add_argument("--reconciled", action="store_true")
     args = parser.parse_args()
+    if args.local_only and args.operation != "check":
+        parser.error("--local-only is only valid for check --reserve")
     if args.operation == "check":
         if not args.identity:
             parser.error("check requires --identity")
         identity = json.loads(Path(args.identity).read_text(encoding="utf-8"))
         plan = json.loads(Path(args.delivery_plan).read_text(encoding="utf-8")) if args.delivery_plan else None
         # Validate before loading credentials, reading Hub or reserving generation.
-        if plan is not None or (args.reserve and args.channel == "MT"):
-            from lib.content_delivery import validate_plan
-            validate_plan(plan, channel=args.channel, identity=identity)
+        validate_reservation_request(args.channel, identity, args.stage, args.reserve, plan, args.local_only)
         result = configured_client().novelty(args.channel, identity, args.stage,
-                                            registry_path=args.registry, reserve=args.reserve, delivery_plan=plan)
+                                            registry_path=args.registry, reserve=args.reserve, delivery_plan=plan, local_only=args.local_only)
     else:
         registry = NoveltyRegistry(args.registry)
         try:

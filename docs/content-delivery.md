@@ -69,13 +69,40 @@ Reserve generation with that same artifact:
 python scripts/content_novelty.py check --identity projects/<id>/artifacts/content-identity.json --delivery-plan projects/<id>/artifacts/delivery-plan.json --channel MT --reserve
 ```
 
-The maintained client requires the plan for MT reservations and validates it
+The maintained client requires the plan for Hub-bound MT reservations and validates it
 before any Hub read. The shared local registry stores the plan atomically with
 the generation intent. An exact repeat is idempotent; a different sealed plan
 cannot replace the reservation. Never attach a plan after generation starts.
 If the plan needs changing, reconcile/cancel the old intent through its existing
 expected-version rules and obtain the normal production review for a new
 production ID. No timeout authorizes another submission.
+
+For an explicitly local-only MT production, use the same identity, live novelty
+evidence and shared intent registry with `--reserve --local-only` instead of a
+delivery plan. This does not skip Hub evidence reads or authorize delivery:
+
+```sh
+python scripts/content_novelty.py check --identity projects/<id>/artifacts/content-identity.json --channel MT --reserve --local-only
+```
+
+The client keyword is `local_only=True`. This flag is valid only for an MT
+PRE_GENERATION reservation without a plan; omitting it retains the Hub-bound
+requirement. The registry atomically binds LOCAL_ONLY to the new intent. An
+exact repeat retains that scope; it cannot acquire a Hub plan even before
+generation, and historical intents cannot be relabelled local-only. A later
+Hub-bound request needs a separately authorized new production identity and
+its normal novelty/remake and plan checks. Existing assets and receipts remain
+intact; a new identity is not permission to regenerate or bypass reuse review.
+
+Every maintained ingest checks the manifest production IDs against that same
+registry, including legacy packages without `contentIdentity` or a plan. Do not
+select a different registry to avoid this binding. Historical unmarked packages
+remain supported. A persistent SQLite guard also rejects plan attachment by an
+older client. These are cooperative single-host data checks, not a defense
+against someone changing the database or a guarantee across separate registries.
+For rollback, disable new local-only reservations while retaining the scope-aware
+ingest reader and the marker table/trigger for existing rows. Do not downgrade
+to an ingest reader that ignores their scope or relabel a retained intent.
 
 # Bind the final batch to the reserved plan
 
