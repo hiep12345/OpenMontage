@@ -1,9 +1,5 @@
 # OpenMontage
 
-**MANDATORY: Read [`AGENT_GUIDE.md`](AGENT_GUIDE.md) before responding to ANY user message.**
-
-Do not act on the user's request until you have read AGENT_GUIDE.md.
-It contains routing rules that determine your first action based on what the user asked.
-Skipping it WILL cause you to take the wrong action.
-
-There are no instructions in this file. All instructions are in AGENT_GUIDE.md.
+Start with the request router and binding boundaries in [`AGENTS.md`](AGENTS.md).
+Read only the task-relevant sections of [`AGENT_GUIDE.md`](AGENT_GUIDE.md)
+selected by that router; the full guide is not required on every message.

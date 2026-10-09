@@ -1,8 +1,59 @@
 # OpenMontage - Agent Guide
 
-Start here. This is the complete operating guide and agent contract for OpenMontage.
+Start with the request router and binding boundaries in [`AGENTS.md`](AGENTS.md).
+This guide is a supporting operating reference, not a required full read on every
+message. Read the sections selected by that router and the current stage/tool.
+Previously read guidance may be reused while its source and task scope still apply.
 
 For architecture, key files, and conventions see [`PROJECT_CONTEXT.md`](PROJECT_CONTEXT.md).
+
+## Approved Production Resume
+
+An exact approved resume continues an identified run; it is not a new proposal.
+Maintenance and read-only inspection of a run do not authorize production.
+
+1. **Recover identity and scope.** Read `projects/<project-id>/project.json`, the
+   selected manifest in `pipeline_defs/`, existing checkpoints, canonical artifacts
+   and `decision_log.json`. Confirm the requested project, brief, approved assets,
+   provider/model, `render_runtime`, composition mode, music, sample/batch mode and
+   remaining authorized budget. Do not infer missing approval from a file's existence.
+2. **Find the next authorized step.** Use
+   `checkpoint.get_next_stage(pipeline_dir, project_id, pipeline_type)` and read that
+   stage's checkpoint, including `metadata.partial_progress`. Load valid prior
+   artifacts and skip verified completed units; do not overwrite history or regenerate
+   completed assets merely because a new message arrived. Read **Stage Agents**,
+   **Reviewer Protocol**, **Human Checkpoint Protocol**, **Communication Protocol**
+   and `skills/meta/checkpoint-protocol.md` as needed for the recovered stage.
+3. **Reuse valid choices and approvals.** Keep the exact approved plan. Do not
+   repeat onboarding, generic provider/setup menus, concept proposals, runtime
+   shortlists or music choices on every message. The runtime conversation and music
+   plan belong to initial selection or a material revision, not an unchanged resume.
+   Existing approval covers only the exact gate/scope it approved. An `awaiting_human`
+   checkpoint still requires approval unless the current reply explicitly approves
+   that artifact or an explicit recorded `approval_policy` covers that gate. An early
+   "go ahead" never silently approves later gates. Assets approval precedes full render.
+4. **Verify current execution conditions.** Inspect the selected tools' current
+   registry contracts, availability and cost before execution. Read the current
+   stage director and only the relevant used tools' `agent_skills` before tool calls;
+   reuse already-read skills only while their source and scope remain applicable.
+   Do not repeat the full preflight menu when the approved path is unchanged and
+   still available. A changed capability, expired/missing evidence, budget shortfall
+   or blocked approved path requires the relevant recheck and explicit blocker.
+5. **Continue within authority.** Announce paid/consequential calls per **Decision
+   Communication Contract** and stay within approved spend and sample/batch scope.
+   Material provider/model/runtime/music/creative changes or additional unapproved
+   spend require approval and an appended decision-log entry before execution.
+   Validate stage artifacts/checkpoints and preserve manifest approval and QA gates.
+   No resume approval by itself authorizes publishing.
+
+For caption packaging, Hub handoff or publishing readiness, read **Caption website
+acceptance** and `docs/caption-link-quality.md`. Retain exact caption/package,
+asset/source and website-release binding; recheck evidence when that contract
+requires it, including later-day resume. FAIL or NOT TESTED still blocks readiness
+and new publishing approval. Preserve historical receipts and distinguish a sealed
+accepted replay from a potentially new mutation; the delivery contract decides.
+If identity, approval or scope cannot be established, stop the dependent production
+action, surface the missing evidence and continue independent inspection.
 
 ## First Interaction — Onboarding
 
@@ -54,7 +105,7 @@ When the user asks to make, create, produce, or generate any video content — a
 
 1. **Identify the pipeline.** Match the request to one of the pipelines in `pipeline_defs/`. If unclear, ask the user.
 2. **Read the pipeline manifest.** `pipeline_defs/<pipeline>.yaml` — know the stages, tools, and quality gates.
-3. **Run preflight.** Discover available tools via the registry. Present the capability menu.
+3. **Run preflight for a new production.** Discover available tools via the registry. Present the capability menu. For an existing approved run, use **Approved Production Resume** instead of restarting selection.
 4. **Execute stage by stage.** For EACH stage, read the stage director skill (`skills/pipelines/<pipeline>/<stage>-director.md`) BEFORE doing any work in that stage.
 5. **Read Layer 3 skills before calling tools.** Before using any tool with an `agent_skills` field, read the referenced skill in `.agents/skills/`. These contain provider-specific prompting guidance, parameter optimization, and quality techniques that dramatically improve output.
 
@@ -107,6 +158,14 @@ at the normal pipeline gates; plan validation does not establish visual QA or
 authorize social publication. Preserve historical requests/receipts; never
 retroactively attach a plan to a running or completed production.
 
+An explicitly local-only MT production follows `docs/content-delivery.md` with
+`--reserve --local-only` / `local_only=True`. This binds `LOCAL_ONLY` atomically
+to the intent and still requires novelty evidence reads and normal production
+gates. It does not authorize Hub delivery or publishing, and the intent cannot
+later acquire a Hub plan. A later Hub-bound request requires a separately
+authorized new production identity and the normal novelty/remake and plan checks;
+preserve existing assets and receipts rather than retroactively relabelling them.
+
 Core loop:
 
 1. Select a pipeline.
@@ -151,6 +210,10 @@ Editing only a downstream artifact (the `asset_manifest`, a prop) while leaving 
 ### Present Both Composition Runtimes (HARD RULE)
 
 When both Remotion and HyperFrames are available on the machine (check `video_compose.get_info()["render_engines"]`), the agent **MUST present both options to the user** before locking `render_runtime` at the proposal stage. The agent MAY recommend one with rationale — but silently picking a "default" is forbidden even when the pipeline manifest or a director skill suggests one.
+
+This is an initial-selection or material-revision gate. An exact approved resume
+retains the recorded runtime and shortlist without asking the user to select again;
+verify current availability and surface blockers rather than silently swapping.
 
 The presentation MUST include, for each runtime:
 
@@ -290,7 +353,10 @@ If the folder has tracks, the proposal and asset stages should present them as o
 
 ## Mandatory Preflight
 
-Do this before any creative work. **Use `provider_menu_summary()` first — it's the human-ready rollup.** The raw `support_envelope()` dump is a firehose (megabytes of JSON on a well-configured machine); pasting it into chat will bury the user.
+Do this before creative work on a new production. Maintenance/read-only requests
+do not run production preflight. For an unchanged approved run, follow **Approved
+Production Resume** and check the selected path instead of repeating generic menus.
+**Use `provider_menu_summary()` first — it's the human-ready rollup.** The raw `support_envelope()` dump is a firehose (megabytes of JSON on a well-configured machine); pasting it into chat will bury the user.
 
 ```bash
 python -c "
@@ -541,7 +607,9 @@ Selectors route based on: user preference > availability > discovery order. They
 
 ## User-Facing Planning Protocol
 
-Before committing to execution, present:
+For a new production or material plan revision, before committing to execution,
+present the relevant choices below. An unchanged approved resume retains the
+recorded plan and approvals under **Approved Production Resume**:
 
 1. `4-5` concept directions when the brief is still open.
 2. Recommended pipeline.
@@ -556,7 +624,7 @@ If a user prefers a specific vendor and that tool is available, surface it direc
 
 ### Music Plan (Mandatory)
 
-Music is a critical part of any video. **Surface the music situation to the user at proposal/idea time** — do not silently defer it to the asset stage where a failure becomes expensive.
+Music is a critical part of any video. **Surface the music situation to the user at proposal/idea time** — do not silently defer it to the asset stage where a failure becomes expensive. An exact approved resume keeps the recorded music choice (including an approved no-music choice); reopen selection only when that choice is missing, blocked or materially changed.
 
 Check music availability in this order and present the options:
 

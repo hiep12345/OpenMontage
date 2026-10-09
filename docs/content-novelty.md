@@ -14,6 +14,13 @@ episode and its intended file/destination mapping before generation and is
 stored immutably with the reservation. Final identity ingest must match that
 exact plan and a finished intent before any Hub request.
 
+For explicitly local-only MT generation, replace `--delivery-plan PLAN` with
+`--local-only` while retaining `check --reserve`, the same identity and registry,
+and live Hub novelty coverage. No destinations are invented. LOCAL_ONLY is
+bound atomically to a new intent and cannot later acquire Hub delivery scope.
+The default remains Hub-bound; historical intents keep their original meaning.
+This flag is not an offline mode, generation approval or publishing permission.
+
 The client fetches every all-status Hub page, verifies the entire snapshot digest
 and refreshes the derived local index. A shared registry defaults to
 `~/.codex/state/openmontage-content-novelty.sqlite`; all accounts and runners on
