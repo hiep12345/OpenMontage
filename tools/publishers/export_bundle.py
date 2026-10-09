@@ -18,6 +18,7 @@ A networked publisher (e.g. a YouTube uploader) can be added later as a separate
 from __future__ import annotations
 
 import json
+import hashlib
 import shutil
 from datetime import datetime, timezone
 from pathlib import Path
@@ -47,8 +48,8 @@ class ExportBundle(BaseTool):
     determinism = Determinism.DETERMINISTIC
     runtime = ToolRuntime.LOCAL
 
-    dependencies = []  # pure filesystem packaging
-    install_instructions = "No setup required — runs locally with the Python standard library."
+    dependencies = []  # Owned caption URLs additionally require public HTTP QA.
+    install_instructions = "Uses the maintained Python environment; owned caption URLs additionally require public website access."
 
     agent_skills = []
 
@@ -86,6 +87,7 @@ class ExportBundle(BaseTool):
                 "description": "Override the export root. Defaults to 'exports/<project_name>'.",
             },
             "description": {"type": "string"},
+            "caption_link_review": {"type": "object", "description": "Explicit named semantic/browser review sealed to caption_review_scope() final bytes and asset; required for Mix Therapy URLs."},
             "tags": {"type": "array", "items": {"type": "string"}},
             "hashtags": {"type": "array", "items": {"type": "string"}},
             "chapters": {
@@ -124,7 +126,7 @@ class ExportBundle(BaseTool):
     resource_profile = ResourceProfile(
         cpu_cores=1, ram_mb=128, vram_mb=0, disk_mb=0, network_required=False
     )
-    side_effects = ["writes an export bundle directory to disk"]
+    side_effects = ["writes an export bundle directory to disk", "checks public Mix Therapy caption URLs when present"]
     user_visible_verification = [
         "Open the export folder and confirm the video, metadata, and chapters are present and correct",
     ]
@@ -155,6 +157,38 @@ class ExportBundle(BaseTool):
 
     # ---- Execution ----
 
+    def caption_review_scope(self, inputs):
+        """Deterministic final file bytes for the human review, before packaging."""
+        from lib.caption_links import seal_fields
+        files = self._caption_files(inputs)
+        return {"schemaVersion": 1, "assetHash": self._asset_hash(Path(inputs["video_path"]).expanduser()),
+                "fields": seal_fields([{"id": "file:" + path, "text": text} for path, text in files.items()])}
+
+    @staticmethod
+    def _asset_hash(path):
+        hashed = hashlib.sha256()
+        with path.open("rb") as stream:
+            for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+                hashed.update(chunk)
+        return "sha256:" + hashed.hexdigest()
+
+    def _caption_files(self, inputs):
+        description = inputs.get("description", "")
+        chapters = inputs.get("chapters", []) or []
+        lines = self._chapter_lines(chapters)
+        metadata = {"title": inputs["title"], "description": description, "tags": inputs.get("tags", []) or [],
+                    "hashtags": inputs.get("hashtags", []) or [], "chapters": chapters}
+        parts = [description] if description else []
+        if lines:
+            parts.append("\n".join(lines))
+        files = {"metadata/metadata.json": json.dumps(metadata, indent=2),
+                 "metadata/description.txt": "\n\n".join(parts) + ("\n" if parts else "")}
+        if metadata["tags"]:
+            files["metadata/tags.txt"] = "\n".join(metadata["tags"]) + "\n"
+        if lines:
+            files["metadata/chapters.txt"] = "\n".join(lines) + "\n"
+        return files
+
     def execute(self, inputs: dict[str, Any]) -> ToolResult:
         video_path = Path(inputs["video_path"]).expanduser()
         if not video_path.is_file():
@@ -170,6 +204,16 @@ class ExportBundle(BaseTool):
             if val and not Path(val).expanduser().is_file():
                 return ToolResult(success=False, error=f"{key} provided but not found: {val}")
 
+        from lib.caption_links import export_qa
+        from lib.distribution_hub import HubError
+        caption_files = self._caption_files(inputs)
+        asset_hash = self._asset_hash(video_path)
+        try:
+            caption_qa = export_qa([{"id": "file:" + path, "text": text} for path, text in caption_files.items()],
+                                   asset_hash, inputs.get("caption_link_review"))
+        except (HubError, UnicodeError):
+            return ToolResult(success=False, error="Final caption website QA failed; exact named review and fresh website checks required")
+
         export_root = (
             Path(inputs["export_dir"]).expanduser()
             if inputs.get("export_dir")
@@ -179,6 +223,8 @@ class ExportBundle(BaseTool):
         video_dir = export_root / "video"
         meta_dir = export_root / "metadata"
         thumb_dir = export_root / "thumbnails"
+        if meta_dir.exists() and any(meta_dir.iterdir()):
+            return ToolResult(success=False, error="Existing export metadata must be preserved; choose a new export_dir for this revision")
         for d in (video_dir, meta_dir, thumb_dir):
             d.mkdir(parents=True, exist_ok=True)
 
@@ -187,6 +233,8 @@ class ExportBundle(BaseTool):
         # Video
         out_video = video_dir / f"output{video_path.suffix or '.mp4'}"
         shutil.copy2(video_path, out_video)
+        if self._asset_hash(out_video) != asset_hash:
+            return ToolResult(success=False, error="Final video changed while packaging; review again")
         files_written.append(str(out_video))
 
         # Subtitles (optional)
@@ -213,7 +261,7 @@ class ExportBundle(BaseTool):
             "chapters": chapters,
         }
         meta_json = meta_dir / "metadata.json"
-        meta_json.write_text(json.dumps(metadata, indent=2), encoding="utf-8")
+        meta_json.write_bytes(caption_files["metadata/metadata.json"].encode("utf-8"))
         files_written.append(str(meta_json))
 
         # description.txt (description + chapters appended, ready to paste)
@@ -221,19 +269,19 @@ class ExportBundle(BaseTool):
         if chapter_lines:
             desc_parts.append("\n".join(chapter_lines))
         desc_txt = meta_dir / "description.txt"
-        desc_txt.write_text("\n\n".join(desc_parts) + ("\n" if desc_parts else ""), encoding="utf-8")
+        desc_txt.write_bytes(caption_files["metadata/description.txt"].encode("utf-8"))
         files_written.append(str(desc_txt))
 
         # tags.txt (one per line)
         if tags:
             tags_txt = meta_dir / "tags.txt"
-            tags_txt.write_text("\n".join(tags) + "\n", encoding="utf-8")
+            tags_txt.write_bytes(caption_files["metadata/tags.txt"].encode("utf-8"))
             files_written.append(str(tags_txt))
 
         # chapters.txt
         if chapter_lines:
             chapters_txt = meta_dir / "chapters.txt"
-            chapters_txt.write_text("\n".join(chapter_lines) + "\n", encoding="utf-8")
+            chapters_txt.write_bytes(caption_files["metadata/chapters.txt"].encode("utf-8"))
             files_written.append(str(chapters_txt))
 
         # Thumbnail: real image if given, else concept JSON
@@ -265,6 +313,10 @@ class ExportBundle(BaseTool):
             entry["visibility"] = inputs["visibility"]
 
         publish_log = {"version": "1.0", "entries": [entry]}
+        if caption_qa is not None:
+            qa_path = meta_dir / "caption-link-qa.json"
+            qa_path.write_bytes((json.dumps(caption_qa, ensure_ascii=False, indent=2) + "\n").encode("utf-8"))
+            files_written.append(str(qa_path))
 
         # Validate against the canonical schema so a bad entry fails here, not at checkpoint.
         try:
@@ -280,6 +332,7 @@ class ExportBundle(BaseTool):
                 "publish_log": publish_log,
                 "export_path": str(export_root),
                 "files_written": files_written,
+                "caption_link_qa": caption_qa,
             },
             artifacts=[str(out_video)],
         )

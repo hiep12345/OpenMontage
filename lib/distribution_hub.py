@@ -46,6 +46,7 @@ PUBLIC_ERROR_CODES = frozenset({
     "CONTENT_INDEX_CHANGED",
     "HANDOFF_PROTOCOL_UNSUPPORTED", "HANDOFF_CHECKPOINT_CONFLICT", "HANDOFF_CHECKPOINT_BUSY",
     "HANDOFF_METADATA_UNCERTAIN", "META_TARGET_OVERLAP",
+    "CAPTION_LINK_QA_REQUIRED", "CAPTION_FIELDS_INVALID",
 })
 
 
@@ -334,6 +335,8 @@ class HubClient:
         self.transport = transport if transport is not None else requests.Session()
         self.timeout = timeout
         self.diagnostics = []
+        self._accepted_ingests = set()
+        self._accepted_adoptions = set()
 
     def _request(self, method, route, *, params=None, body=None, data=None, key=None):
         headers = dict(self._headers)
@@ -516,14 +519,14 @@ class HubClient:
                 raise HubError("ACTIVE_INTENT_CONFLICT") from None
             raise HubError("Creative preflight inputs or registry unavailable") from None
 
-    def _validate_ingest(self, payload, *, novelty_registry=None, delivery_plan=None):
+    def _validate_ingest(self, payload, *, novelty_registry=None, delivery_plan=None, _caption_freshness=True):
         from lib.content_delivery import validate_batch
         from lib.content_novelty import NoveltyRegistry
         _require(isinstance(payload, dict) and payload.get("schemaVersion") == 2 and
                  payload.get("sourceSystem") == "production-pipeline" and
                  isinstance(payload.get("idempotencyKey"), str) and 16 <= len(payload["idempotencyKey"]) <= 180 and
                  isinstance(payload.get("items"), list) and 0 < len(payload["items"]) <= 100, "Invalid schema-v2 ingest")
-        plan_check = validate_batch(payload, delivery_plan)
+        plan_check = validate_batch(payload, delivery_plan, caption_freshness=_caption_freshness)
         plans = [] if delivery_plan is None else delivery_plan if isinstance(delivery_plan, list) else [delivery_plan]
         if plans:
             registry = NoveltyRegistry(novelty_registry)
@@ -545,7 +548,11 @@ class HubClient:
 
     def ingest(self, payload, *, novelty_registry=None, delivery_plan=None,
                _before_send=None, _on_receipt=None):
-        plan_check = self._validate_ingest(payload, novelty_registry=novelty_registry, delivery_plan=delivery_plan)
+        payload = json.loads(canonical_json(payload))  # Validation and POST use the same frozen final bytes.
+        fingerprint = digest({"origin": self.origin, "actor": self._headers["CF-Access-Client-Id"], "payload": payload})
+        accepted = fingerprint in self._accepted_ingests
+        plan_check = self._validate_ingest(payload, novelty_registry=novelty_registry, delivery_plan=delivery_plan,
+                                           _caption_freshness=not accepted)
         plans = [] if delivery_plan is None else delivery_plan if isinstance(delivery_plan, list) else [delivery_plan]
         # A handoff readback proves selected source/job evidence, not the full
         # batch actor/key receipt. Unknown metadata outcomes remain unresolved.
@@ -554,9 +561,23 @@ class HubClient:
         checks = [self.novelty(item["channelCode"], item["contentIdentity"], "PRE_DELIVERY", registry_path=novelty_registry,
                                _snapshot=before[item["channelCode"]])
                   for item in payload["items"] if "contentIdentity" in item]
+        if not accepted:
+            from lib.caption_links import validate_qa, website_urls
+            # Validate the whole batch before its first mutation. One shared
+            # catalog/HTTP check covers repeated URLs across destinations.
+            qas = [validate_qa(item) for item in payload["items"]]
+            active = [qa for qa in qas if qa is not None and website_urls([u for f in qa["fields"] for u in f["urls"]])]
+            if active:
+                from lib.caption_links import check_website
+                current = check_website(website_urls([u for qa in active for f in qa["fields"] for u in f["urls"]]))
+                for qa in active:
+                    urls = set(website_urls([u for f in qa["fields"] for u in f["urls"]]))
+                    _require(qa["websiteRelease"] == current["websiteRelease"] and qa["checks"] ==
+                             [c for c in current["checks"] if c["url"] in urls], "Website changed after final caption review")
         if _before_send is not None:
             _before_send()
         receipt = self._request("POST", "/api/ingest", body=payload, key=payload["idempotencyKey"])
+        self._accepted_ingests.add(fingerprint)  # Only a positive exact-key/body response permits replay.
         # Persist the positive response before any subsequent read can fail.
         if _on_receipt is not None:
             _on_receipt(receipt)
@@ -578,6 +599,60 @@ class HubClient:
         indexed = next((c for c in index["items"] if c["kind"] == "hub" and c["id"] == content_id), None)
         _require(indexed is not None and indexed.get("sourceRevision") == source_revision and
                  indexed.get("identityHash") == digest(identity), "Creative identity differs from its accepted source")
+
+    def adopt_package(self, request, snapshot, *, root=None, legacy_tiktok=False):
+        """Send a supplied canonical package; never reconstruct an uncertain key/body."""
+        _require(type(legacy_tiktok) is bool and isinstance(request, dict), "Invalid package adoption")
+        fields = {"schemaVersion", "idempotencyKey", "channelCode", "contentId", "expectedProfileRevision",
+                  "expectedSourceRecordHash", "captionLinkQa"}
+        fields |= {"tiktok"} if legacy_tiktok else {"target", "package"}
+        target = "tiktok" if legacy_tiktok else request.get("target")
+        if target == "pinterest" and not legacy_tiktok:
+            fields.add("delivery")
+        _require(set(request) == fields and type(request["schemaVersion"]) is int and
+                 request["schemaVersion"] == (2 if legacy_tiktok else 3) and target in {"x", "tiktok", "pinterest"},
+                 "Unsupported caption-aware package adoption")
+        package = request["tiktok"] if legacy_tiktok else request["package"]
+        manifest = None
+        if target == "pinterest":
+            _require(isinstance(request["delivery"], dict) and isinstance(request["delivery"].get("manifest"), dict),
+                     "Destination manifest required")
+            manifest = request["delivery"]["manifest"]
+        return self._adopt_caption_request("/api/ingest/handoff/tiktok" if legacy_tiktok else "/api/ingest/handoff/packages",
+                                           request, snapshot, {target: package}, manifest, root)
+
+    def adopt_media(self, request, snapshot, packages, *, root=None):
+        """Packages are the exact stored source packages, not destination replacements."""
+        _require(isinstance(request, dict) and set(request) == {"schemaVersion", "idempotencyKey", "channelCode", "contentId",
+                 "expectedProfileRevision", "expectedSourceRecordHash", "deliveryManifest", "captionLinkQa"} and
+                 type(request["schemaVersion"]) is int and request["schemaVersion"] == 2 and isinstance(packages, dict),
+                 "Unsupported caption-aware media adoption")
+        return self._adopt_caption_request("/api/ingest/handoff/media", request, snapshot, packages, request["deliveryManifest"], root)
+
+    def _adopt_caption_request(self, route, request, snapshot, packages, manifest, root):
+        request = json.loads(canonical_json(request))  # Freeze the original permanent-key body.
+        _require(isinstance(request["idempotencyKey"], str) and 16 <= len(request["idempotencyKey"]) <= 180,
+                 "Invalid adoption key")
+        verify_handoff(snapshot, request["channelCode"], request["contentId"])
+        _require(request["expectedProfileRevision"] == snapshot["profile"]["profileRevision"] and
+                 request["expectedSourceRecordHash"] == snapshot["sourceRecordHash"], "Adoption preconditions differ from reviewed source")
+        fingerprint = digest({"origin": self.origin, "actor": self._headers["CF-Access-Client-Id"], "route": route, "request": request})
+        accepted = fingerprint in self._accepted_adoptions
+        source = snapshot["source"]
+        item = {**packages, "id": source["contentId"], "channelCode": source["channelCode"], "assetHash": source["assetHash"],
+                "distributionRevision": source["distributionRevision"], "deliveryManifest": manifest or {"files": []},
+                "captionLinkQa": request["captionLinkQa"]}
+        from lib.caption_links import fresh_qa, is_caption_file, validate_qa
+        _require(isinstance(item["deliveryManifest"], dict) and isinstance(item["deliveryManifest"].get("files"), list),
+                 "Invalid adoption caption manifest")
+        _require(source["channelCode"] != "MT" or root is not None or not any(is_caption_file(f) for f in item["deliveryManifest"]["files"]),
+                 "Exact local caption files are required for adoption")
+        qa = validate_qa(item, root, freshness=not accepted)
+        if not accepted:
+            fresh_qa(qa)
+        receipt = self._request("POST", route, body=request, key=request["idempotencyKey"])
+        self._accepted_adoptions.add(fingerprint)
+        return receipt
 
     def _context(self, content_id, target, delivery):
         context = self._request("GET", "/api/ingest/artifacts/media", params={"contentId": content_id, "target": target})

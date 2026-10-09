@@ -53,6 +53,9 @@ def episode(targets=None):
         item["contentIdentity"] = {**base, "variantId": item["id"], "parentVariantId": base["variantId"],
                                    "differenceReason": row["differenceReason"], "primaryFileSha256": item["assetHash"],
                                    "scriptHash": "sha256:" + str(n + 5) * 64, "nativeClipSha256": ["sha256:" + "f" * 64]}
+        qa = item["captionLinkQa"]
+        qa.update(contentId=item["id"], assetHash=item["assetHash"])
+        qa["receiptHash"] = digest({k: v for k, v in qa.items() if k != "receiptHash"})
         payload["items"].append(item)
     return plan, payload
 
@@ -287,6 +290,9 @@ def test_separate_episodes_can_share_one_batch_without_false_grouping():
         item["contentIdentity"].update(productionId="episode-2", variantId=item["id"], parentVariantId="another-master", familyId="another-family")
         item["deliveryManifest"].update(productionId="episode-2", contentId=item["id"])
         item["deliveryManifest"]["manifestHash"] = digest({k: v for k, v in item["deliveryManifest"].items() if k != "manifestHash"})
+        qa = item["captionLinkQa"]
+        qa["contentId"] = item["id"]
+        qa["receiptHash"] = digest({k: v for k, v in qa.items() if k != "receiptHash"})
     payload["items"].extend(other["items"])
     assert validate_batch(payload, [a, reseal(b)])["episodeCount"] == 2
 

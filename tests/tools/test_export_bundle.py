@@ -153,3 +153,72 @@ def test_registry_discovers_export_bundle():
     reg.discover()
     assert reg.get("export_bundle") is not None
     assert reg.get_by_capability("publish")[0].name == "export_bundle"
+
+
+def test_owned_link_without_exact_review_writes_nothing(tmp_path):
+    video = tmp_path / "final.mp4"
+    _make_video(video)
+    out = tmp_path / "export"
+    result = ExportBundle().execute({"video_path": str(video), "title": "Recipe", "export_dir": str(out),
+                                     "description": "https://mixtherapy.space/mix/historical-asphaltum-50-25-3/"})
+    assert not result.success and "QA failed" in result.error and not out.exists()
+
+
+def test_exact_review_and_http_seal_actual_export_bytes(monkeypatch, tmp_path):
+    from datetime import datetime, timezone
+    from lib import caption_links
+    from lib.distribution_hub import bytes_digest, digest
+    video = tmp_path / "final.mp4"
+    _make_video(video)
+    tool = ExportBundle()
+    url = "https://mixtherapy.space/mix/historical-asphaltum-50-25-3/"
+    external = "https://www.youtube.com/@mixtherapy"
+    inputs = {"video_path": str(video), "title": "Recipe", "description": "Exact recipe: " + url + "\nChannel: " + external,
+              "export_dir": str(tmp_path / "out"), "tags": ["paint"], "chapters": [{"start_seconds": 0, "title": "Mix"}]}
+    review = {**tool.caption_review_scope(inputs), "websiteRelease": "a" * 64,
+              "reviewer": {"name": "Named owner", "checkedAt": datetime.now(timezone.utc).isoformat(),
+                           "semantic": "PASS", "browser": "PASS", "evidence": ["source-and-rendered-review.json"]}}
+    inputs["caption_link_review"] = review
+    monkeypatch.setattr(caption_links, "check_website", lambda urls, **kwargs: {
+        "checkedAt": datetime.now(timezone.utc).isoformat(), "websiteRelease": "a" * 64,
+        "checks": [{"url": url, "status": 200, "identity": "historical-asphaltum-50-25-3", "sourceReceiptSha256": "b" * 64}]})
+    result = tool.execute(inputs)
+    assert result.success
+    root = Path(result.data["export_path"])
+    qa = json.loads((root / "metadata/caption-link-qa.json").read_text(encoding="utf-8"))
+    assert qa == result.data["caption_link_qa"] and qa["assetHash"] == bytes_digest(video.read_bytes())
+    assert qa["receiptHash"] == digest({k: v for k, v in qa.items() if k != "receiptHash"})
+    assert all(f["urls"] == sorted([url, external]) for f in qa["fields"] if f["id"] in {"file:metadata/metadata.json", "file:metadata/description.txt"})
+    assert [c["url"] for c in qa["checks"]] == [url]
+    for field in qa["fields"]:
+        assert field["sha256"] == bytes_digest((root / field["id"][5:]).read_bytes())
+    # A chapter-only edit changes the exact paste-ready description bytes.
+    inputs["export_dir"] = str(tmp_path / "changed")
+    inputs["chapters"][0]["title"] = "Changed after review"
+    assert not tool.execute(inputs).success and not (tmp_path / "changed").exists()
+
+
+def test_failed_render_review_never_auto_passes(monkeypatch, tmp_path):
+    from datetime import datetime, timezone
+    from lib import caption_links
+    video = tmp_path / "final.mp4"
+    _make_video(video)
+    tool = ExportBundle()
+    inputs = {"video_path": str(video), "title": "Recipe", "description": "https://mixtherapy.space/mix/a/",
+              "export_dir": str(tmp_path / "out")}
+    inputs["caption_link_review"] = {**tool.caption_review_scope(inputs), "websiteRelease": "a" * 64,
+        "reviewer": {"name": "Owner", "checkedAt": datetime.now(timezone.utc).isoformat(), "semantic": "PASS",
+                     "browser": "NOT_TESTED", "evidence": ["partial-review.json"]}}
+    monkeypatch.setattr(caption_links, "check_website", lambda _, **kwargs: pytest.fail("Unreviewed export accessed website"))
+    assert not tool.execute(inputs).success and not (tmp_path / "out").exists()
+
+
+def test_export_preserves_prior_revision_metadata(tmp_path):
+    video = tmp_path / "final.mp4"
+    _make_video(video)
+    inputs = {"video_path": str(video), "title": "Original", "export_dir": str(tmp_path / "out")}
+    assert ExportBundle().execute(inputs).success
+    original = (tmp_path / "out/metadata/metadata.json").read_bytes()
+    inputs["title"] = "New revision"
+    assert not ExportBundle().execute(inputs).success
+    assert (tmp_path / "out/metadata/metadata.json").read_bytes() == original

@@ -56,6 +56,18 @@ def fixture(content_type="photo", meta_target="fb-ig"):
                                  for target in item["targets"]]}
     manifest["manifestHash"] = digest(manifest)
     item["deliveryManifest"] = manifest
+
+    from lib.caption_links import is_caption_file, seal_fields
+    fields = seal_fields([{"id": "file:" + file["path"], "text": members[file["path"]].decode("utf-8")}
+                          for file in files if is_caption_file(file)])
+    qa = {"schemaVersion": 1, "contentId": content_id, "assetHash": item["assetHash"],
+          "distributionRevision": item["distributionRevision"], "fields": fields,
+          "reviewer": {"name": "synthetic-contract-only", "checkedAt": "2026-01-01T00:00:00Z",
+                       "semantic": "NOT_APPLICABLE", "browser": "NOT_APPLICABLE", "evidence": []},
+          "checkedAt": "2026-01-01T00:00:00Z", "websiteRelease": None, "checks": []}
+    if channel == "MT":
+        item["captionLinkQa"] = {**qa, "receiptHash": digest(qa)}
+
     return {"schemaVersion": 1, "payload": {"schemaVersion": 2, "sourceSystem": "production-pipeline",
             "idempotencyKey": "openmontage-contract-fixture-" + suffix, "items": [item]},
             "files": [{**f, "base64": base64.b64encode(members[f["path"]]).decode("ascii")} for f in files],
