@@ -35,7 +35,7 @@ class ShowcaseCard(BaseTool):
 
     dependencies = ["cmd:ffmpeg", "cmd:ffprobe"]
     install_instructions = "Install FFmpeg: https://ffmpeg.org/download.html"
-    agent_skills = ["ffmpeg", "video-toolkit"]
+    agent_skills = ["ffmpeg"]
 
     capabilities = ["create_showcase_card"]
 
