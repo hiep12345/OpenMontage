@@ -84,7 +84,7 @@ Key capability families to look for in the output:
 
 | Skill | File | Trigger | Agent Skills (Layer 3) |
 |-------|------|---------|----------------------|
-| FFmpeg | `core/ffmpeg.md` | Video encoding, filtering, composition | `ffmpeg`, `video-toolkit` |
+| FFmpeg | `core/ffmpeg.md` | Video encoding, filtering, composition | `ffmpeg` |
 | Remotion | `core/remotion.md` | React-based composition, Phase 3+ | `remotion-best-practices`, `remotion` |
 | HyperFrames | `core/hyperframes.md` | HTML/CSS/GSAP composition runtime — kinetic typography, music-to-video, product promos, website capture. Vendored at v0.7.17 (2026-06-27). | `hyperframes` (router) → `hyperframes-core` (contract), `hyperframes-creative` (palette/type/narration), `hyperframes-media` (TTS/BGM/SFX/captions), `hyperframes-animation` (all motion), `hyperframes-cli`, `hyperframes-registry`, `media-use`, `motion-graphics`, `music-to-video` (beats-driven), `website-to-video`, `remotion-to-hyperframes` (migration), `gsap-core`, `gsap-timeline` |
 | WhisperX | `core/whisperx.md` | Transcription with word-level timestamps — default STT (offline, free) | `speech-to-text` |
@@ -97,10 +97,10 @@ Key capability families to look for in the output:
 
 | Skill | File | Trigger | Agent Skills (Layer 3) |
 |-------|------|---------|----------------------|
-| Video Editing | `creative/video-editing.md` | Cut decisions, pacing, rhythm | `ffmpeg`, `video-toolkit` |
+| Video Editing | `creative/video-editing.md` | Cut decisions, pacing, rhythm | `ffmpeg` |
 | Enhancement Strategy | `creative/enhancement-strategy.md` | Overlay placement and density | `ffmpeg` |
 | Data Visualization | `creative/data-visualization.md` | Chart type selection, animation, label placement | `d3-viz`, `remotion-best-practices` |
-| Video Stitching | `creative/video-stitching.md` | Multi-clip assembly, AI clip chaining, spatial composition | `ffmpeg`, `video-toolkit` |
+| Video Stitching | `creative/video-stitching.md` | Multi-clip assembly, AI clip chaining, spatial composition | `ffmpeg` |
 | Video Gen Prompting | `creative/video-gen-prompting.md` | Universal video generation prompt vocabulary; **canonical 5-aspect spec** (Subject / Motion / Scene / Spatial / Camera); ~200 cinematography primitives | `ai-video-gen`, `ltx2`, `create-video` |
 | â†³ Seedance Prompting | `creative/prompting/seedance-prompting.md` | **Preferred premium default.** Seedance 2.0 8-component structure, multi-shot, lip-sync, reference-to-video | `seedance-2-0`, `ai-video-gen` |
 | â†³ Grok Prompting | `creative/prompting/grok-prompting.md` | Grok image/video prompting, edit flows, reference-image video | `grok-media` |
@@ -310,7 +310,9 @@ Load via `styles/playbook_loader.py`: `load_playbook("clean-professional")`
 ## Installed Agent Skills (Layer 3)
 
 All agent skills live in `.agents/skills/` and are managed via `npx skills add`.
-Claude Code accesses them via symlinks in `.claude/skills/`.
+Platform copies are also retained in `.claude/skills/`. This checkout tracks the
+Remotion and Video Toolkit counterparts as regular files rather than symlinks;
+keep those locally adapted copies aligned.
 
 | Category | Installed Skills | Source |
 |----------|-----------------|--------|

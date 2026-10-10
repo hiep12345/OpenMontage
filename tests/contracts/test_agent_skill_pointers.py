@@ -68,3 +68,29 @@ def test_agent_skill_pointer_resolves(tool: str, skill: str) -> None:
         f"{tool} advertises agent_skill {skill!r}, but neither "
         f".agents/skills/{skill}/SKILL.md nor .agents/skills/{skill}.md exists"
     )
+
+
+@pytest.mark.parametrize("name", ("video_trimmer", "video_stitch", "showcase_card", "audio_mixer"))
+def test_local_media_tools_do_not_require_external_generation_setup(name: str) -> None:
+    """Local processing must not instruct callers to bootstrap a cloud toolkit."""
+    tool = registry._tools[name]
+    info = tool.get_info()
+    assert "ffmpeg" in info["agent_skills"]
+    assert "video-toolkit" not in info["agent_skills"]
+    assert tool.provider == "ffmpeg"
+    assert "cmd:ffmpeg" in tool.dependencies
+
+
+@pytest.mark.parametrize("host", (".agents", ".claude"))
+def test_remotion_router_links_resolve_in_the_actual_checkout(host: str) -> None:
+    import re
+
+    entrypoint = REPO_ROOT / host / "skills/remotion/SKILL.md"
+    text = entrypoint.read_text(encoding="utf-8")
+    targets = re.findall(r"\]\(([^)]+)\)", text)
+    assert targets, "Remotion guidance must expose its current supporting sources"
+    for target in targets:
+        if target.startswith("https://"):
+            continue
+        assert (entrypoint.parent / target).is_file(), f"Dead reference: {target}"
+    assert "remotion-official" not in text

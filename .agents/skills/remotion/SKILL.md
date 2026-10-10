@@ -1,160 +1,35 @@
 ---
 name: remotion
-description: Toolkit-specific Remotion patterns — custom transitions, shared components, and project conventions. For core Remotion framework knowledge (hooks, animations, rendering, etc.), see the `remotion-official` skill.
+description: OpenMontage Remotion composition conventions. Use when authoring or debugging a composition whose approved render runtime is Remotion.
 ---
 
-# Remotion — Toolkit Extensions
+# OpenMontage Remotion
 
-> **Core Remotion knowledge** lives in `.claude/skills/remotion-official/` (synced from the official [remotion-dev/skills](https://github.com/remotion-dev/skills) repo). This file covers **toolkit-specific** patterns only.
+Use the existing project composition and approved runtime. For framework APIs,
+read the relevant topic in [remotion-best-practices](../remotion-best-practices/SKILL.md).
 
-## Shared Components
+## Find the current contract
 
-Reusable video components in `lib/components/`. Import in templates via:
+- For OpenMontage artifact-to-render mappings, composition profiles and scene
+  conventions, read the applicable section of [the Remotion core reference](../../../skills/core/remotion.md).
+- For operation inputs and runtime dispatch, inspect the current
+  [video_compose tool](../../../tools/video/video_compose.py). Inspect the
+  selected renderer in `remotion-composer/src/` before importing components.
+- For stock composition IDs and their current props, inspect
+  [Root.tsx](../../../remotion-composer/src/Root.tsx); for bespoke composition,
+  follow the existing approved project-local entry instead.
 
-```tsx
-import { AnimatedBackground, SlideTransition, Label } from '../../../../lib/components';
-```
+Use the selected composition/profile's fps and dimensions. Convert seconds to
+frames with that fps; do not impose 30fps on a different approved profile.
+Keep scene duration separate from total composition duration when animating a
+scene. The core reference describes this boundary and existing scene examples.
 
-| Component | Purpose |
-|-----------|---------|
-| `AnimatedBackground` | Floating shapes background (variants: subtle, tech, warm, dark) |
-| `SlideTransition` | Scene transitions (fade, zoom, slide-up, blur-fade) |
-| `Label` | Floating label badge with optional JIRA reference |
-| `Vignette` | Cinematic edge darkening overlay |
-| `LogoWatermark` | Corner logo branding |
-| `SplitScreen` | Side-by-side video comparison |
-| `NarratorPiP` | Picture-in-picture presenter overlay |
-| `Envelope` | 3D envelope with opening flap animation |
-| `PointingHand` | Animated hand emoji with slide-in and pulse |
-| `MazeDecoration` | Animated isometric grid decoration for corners |
+This checkout does not provide the external toolkit's `lib/components/`,
+`lib/transitions/` or `showcase/transitions` gallery. Do not import those paths
+or bootstrap another toolkit to satisfy an OpenMontage render. Preserve the
+approved runtime, assets, manifest, checkpoint, QA and spend boundaries from
+the project router; a failed render does not authorize a runtime substitution.
 
-## Custom Transitions
-
-The toolkit includes a transitions library at `lib/transitions/` for scene-to-scene effects beyond the official `@remotion/transitions` package.
-
-### Using TransitionSeries
-
-```tsx
-import { TransitionSeries, linearTiming } from '@remotion/transitions';
-// Import custom transitions from lib (adjust path based on your project location)
-import { glitch, lightLeak, clockWipe, checkerboard } from '../../../../lib/transitions';
-// Or import from @remotion/transitions for official ones
-import { slide, fade } from '@remotion/transitions/slide';
-
-<TransitionSeries>
-  <TransitionSeries.Sequence durationInFrames={90}>
-    <TitleSlide />
-  </TransitionSeries.Sequence>
-  <TransitionSeries.Transition
-    presentation={glitch({ intensity: 0.8 })}
-    timing={linearTiming({ durationInFrames: 30 })}
-  />
-  <TransitionSeries.Sequence durationInFrames={120}>
-    <ContentSlide />
-  </TransitionSeries.Sequence>
-</TransitionSeries>
-```
-
-### Available Custom Transitions
-
-| Transition | Options | Best For |
-|------------|---------|----------|
-| `glitch()` | `intensity`, `slices`, `rgbShift` | Tech demos, edgy reveals, cyberpunk |
-| `rgbSplit()` | `direction`, `displacement` | Modern tech, energetic transitions |
-| `zoomBlur()` | `direction`, `blurAmount` | CTAs, high-energy moments, impact |
-| `lightLeak()` | `temperature`, `direction` | Celebrations, film aesthetic, warm moments |
-| `clockWipe()` | `startAngle`, `direction`, `segments` | Time-related content, playful reveals |
-| `pixelate()` | `maxBlockSize`, `gridSize`, `scanlines`, `glitchArtifacts`, `randomness` | Retro/gaming, digital transformations |
-| `checkerboard()` | `gridSize`, `pattern`, `stagger`, `squareAnimation` | Playful reveals, structured transitions |
-
-**Checkerboard patterns:** `sequential`, `random`, `diagonal`, `alternating`, `spiral`, `rows`, `columns`, `center-out`, `corners-in`
-
-### Transition Examples
-
-```tsx
-// Tech/cyberpunk feel
-glitch({ intensity: 0.8, slices: 8, rgbShift: true })
-
-// Warm celebration
-lightLeak({ temperature: 'warm', direction: 'right' })
-
-// High energy zoom
-zoomBlur({ direction: 'in', blurAmount: 20 })
-
-// Chromatic aberration
-rgbSplit({ direction: 'diagonal', displacement: 30 })
-
-// Clock sweep reveal
-clockWipe({ direction: 'clockwise', startAngle: 0 })
-
-// Retro pixelation
-pixelate({ maxBlockSize: 50, glitchArtifacts: true })
-
-// Checkerboard patterns
-checkerboard({ pattern: 'diagonal', gridSize: 8 })
-checkerboard({ pattern: 'spiral', gridSize: 10 })
-checkerboard({ pattern: 'center-out', squareAnimation: 'scale' })
-```
-
-### Transition Duration Guidelines
-
-| Type | Frames | Notes |
-|------|--------|-------|
-| Quick cut | 15-20 | Fast, punchy |
-| Standard | 30-45 | Most common |
-| Dramatic | 50-60 | Slow reveals |
-| Glitch effects | 20-30 | Should feel sudden |
-| Light leak | 45-60 | Needs time to sweep |
-
-### Preview Transitions
-
-Run the showcase gallery to see all transitions:
-
-```bash
-cd showcase/transitions && npm run studio
-```
-
-## Toolkit Best Practices
-
-1. **Frame-based animations only** — Avoid CSS transitions/animations; they cause flickering during render
-2. **Use fps from useVideoConfig()** — Make animations frame-rate independent
-3. **Clamp interpolations** — Use `extrapolateRight: 'clamp'` to prevent runaway values
-4. **Use OffthreadVideo** — Better performance than `<Video>` for complex compositions
-5. **delayRender for async** — Always block rendering until data is ready
-6. **staticFile for assets** — Reference files from `public/` folder correctly
-7. **All projects use 30fps** — Timing: frames = seconds × 30
-8. **playbackRate must be constant** — For variable/extreme speeds, pre-process with FFmpeg
-
-## Project Timing Conventions
-
-| Scene Type | Duration | Notes |
-|------------|----------|-------|
-| Title | 3-5s (90-150f) | Logo + headline |
-| Overview | 10-20s | 3-5 bullet points |
-| Demo | 10-30s | Adjust playbackRate to fit |
-| Stats | 8-12s | 3-4 stat cards |
-| Credits | 5-10s | Quick fade |
-
-**Pacing:** ~150 words/minute for voiceover. Voiceover drives timing.
-
-## Advanced API
-
-For detailed API documentation on all hooks, components, renderer, Lambda, and Player APIs, see [reference.md](reference.md).
-
-## License Note
-
-Remotion has a special license. Companies may need to obtain a license for commercial use. Check https://remotion.dev/license
-
----
-
-## Feedback & Contributions
-
-If this skill is missing information or could be improved:
-
-- **Missing a pattern?** Describe what you needed
-- **Found an error?** Let me know what's wrong
-- **Want to contribute?** I can help you:
-  1. Update this skill with improvements
-  2. Create a PR to github.com/digitalsamba/claude-code-video-toolkit
-
-Just say "improve this skill" and I'll guide you through updating `.claude/skills/remotion/SKILL.md`.
+When adopting Remotion for a new commercial deployment, check its current
+[license terms](https://www.remotion.dev/license). This does not add a new gate
+to routine maintenance of an existing approved runtime.

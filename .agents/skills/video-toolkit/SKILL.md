@@ -1,6 +1,6 @@
 ---
 name: video-toolkit
-description: Create professional videos autonomously using claude-code-video-toolkit — AI voiceovers, image generation, music, talking heads, and Remotion rendering.
+description: Operate an existing claude-code-video-toolkit installation on its supported Linux or macOS host. Use when the task targets that toolkit; OpenMontage local FFmpeg operations do not require it.
 metadata:
   openclaw:
     emoji: "🎬"
@@ -11,6 +11,13 @@ metadata:
 ---
 
 # Video Toolkit
+
+This skill describes a separate toolkit installation, not an OpenMontage
+prerequisite. Use its commands only when the task targets that toolkit on a
+supported host with the actual installation and authorized providers. Missing
+external setup is not a blocker for OpenMontage local media tools. Setup and
+cloud deployment below apply only to a task that authorizes that setup; they
+are not automatic preparation for trimming, stitching or mixing local files.
 
 Create professional explainer videos from a text brief. The toolkit uses open-source AI models on cloud GPUs (Modal or RunPod) for voiceover, image generation, music, and talking head animation. Remotion (React) handles composition and rendering.
 
