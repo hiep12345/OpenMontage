@@ -148,7 +148,7 @@ ffprobe -v quiet -print_format json -show_format -show_streams input.mp4
 | Constant speed (1.5x, 2x) | Either works | ✅ Simpler |
 | Extreme speeds (>4x or <0.25x) | ✅ More reliable | May have issues |
 | Variable speed (accelerate over time) | ✅ Pre-process | Complex workaround needed |
-| Need perfect audio sync | ✅ Guaranteed | Usually fine |
+| Audio sync | Verify output timestamps and playback | Verify after re-encoding |
 | Demo needs to fit voiceover timing | ✅ Pre-calculate | Runtime adjustment |
 
 **Remotion limitation:** `playbackRate` must be constant. Dynamic interpolation like `playbackRate={interpolate(frame, [0, 100], [1, 5])}` won't work correctly because Remotion evaluates frames independently.
@@ -279,21 +279,25 @@ ffmpeg -i out/video.mp4 \
   out/video-shorts.mp4
 ```
 
+Platform limits below are illustrative; verify the destination's current official requirements when exporting.
+
 ### Twitter/X
 
 Twitter has strict limits: max 140s, 512MB, 1920x1200:
 
 ```bash
-# Twitter optimized (under 15MB target for fast upload)
+# Twitter-oriented encode (CRF does not guarantee a file-size ceiling)
 ffmpeg -i out/video.mp4 \
   -c:v libx264 -preset medium -crf 24 \
   -profile:v main -level 3.1 \
   -vf "scale='min(1280,iw)':'min(720,ih)':force_original_aspect_ratio=decrease" \
   -c:a aac -b:a 128k -ar 44100 \
   -movflags +faststart \
-  -fs 15M \
   out/video-twitter.mp4
 
+# Check the complete output size and duration; compare duration with the source.
+# For a strict byte budget, calculate a bitrate from duration and use two-pass
+# encoding, then verify. Do not use -fs: it stops writing and can truncate the video.
 # Check file size and duration
 ffprobe -v error -show_entries format=duration,size -of csv=p=0 out/video-twitter.mp4
 ```
@@ -429,4 +433,4 @@ If this skill is missing information or could be improved:
   1. Update this skill with improvements
   2. Create a PR to github.com/digitalsamba/claude-code-video-toolkit
 
-Just say "improve this skill" and I'll guide you through updating `.claude/skills/ffmpeg/SKILL.md`.
+Just say "improve this skill" and I'll guide you through updating `.agents/skills/ffmpeg/SKILL.md`.

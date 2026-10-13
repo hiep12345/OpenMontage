@@ -9,14 +9,14 @@ Run `npx hyperframes auth status` to see what's configured and which engines a w
 | **HeyGen** (TTS + BGM/SFX retrieval) | `$HEYGEN_API_KEY` → `$HYPERFRAMES_API_KEY` → `~/.heygen/credentials` (shared with heygen-cli; `$HEYGEN_CONFIG_DIR` overrides the dir; written by `hyperframes auth login`) | none (REST)                                      |
 | **ElevenLabs** (TTS fallback)        | `$ELEVENLABS_API_KEY`                                                                                                                                                      | `pip install elevenlabs`                         |
 | **Lyria** (BGM fallback)             | `$GEMINI_API_KEY` → `$GOOGLE_API_KEY`                                                                                                                                      | `pip install google-genai`                       |
-| **Kokoro** (TTS, no key)             | always — final voice fallback                                                                                                                                              | `pip install kokoro-onnx soundfile`              |
-| **MusicGen** (BGM, no key)           | always — final music fallback                                                                                                                                              | `pip install transformers torch soundfile numpy` |
+| **Kokoro** (TTS, no key)             | installed dependencies/model only                                                                                                                                              | `pip install kokoro-onnx soundfile`              |
+| **MusicGen** (BGM, no key)           | installed dependencies/model only                                                                                                                                              | `pip install transformers torch soundfile numpy` |
 
-`hyperframes auth login` (browser OAuth) is the recommended setup: one sign-in, every project, no per-repo `.env`. An OAuth login is sent as `Authorization: Bearer`; an API key as `X-Api-Key`. With no HeyGen credential, voice/BGM run fully locally (Kokoro / MusicGen) — `hyperframes auth status` and `hyperframes doctor` both report whether those local deps are installed.
+`hyperframes auth login` (browser OAuth) is the recommended setup: one sign-in, every project, no per-repo `.env`. An OAuth login is sent as `Authorization: Bearer`; an API key as `X-Api-Key`. No HeyGen credential does not imply offline execution: automatic routes can call ElevenLabs or Google Lyria. Explicit offline work must use installed Kokoro/MusicGen only — `hyperframes auth status` and `hyperframes doctor` both report whether those local deps are installed.
 
 ## Model caches & system dependencies
 
-Each command downloads its own model on first run and caches it under `~/.cache/hyperframes/`:
+Some commands download models on first run. Confirm installed weights/dependencies before offline execution; authorize any setup/download separately. Cache locations below describe runtime behavior, not permission to mutate global caches:
 
 - **TTS (HeyGen)** — no local deps; needs a HeyGen credential + `ffmpeg` on PATH (to transcode the mp3 response to `.wav`). Credential resolves like the CLI: `$HEYGEN_API_KEY` → `$HYPERFRAMES_API_KEY` → `~/.heygen/credentials` (shared with heygen-cli; run `npx hyperframes auth login`). An OAuth login is sent as `Authorization: Bearer`; an API key as `X-Api-Key`.
 - **TTS (ElevenLabs)** — same as HeyGen: API key + `ffmpeg`.

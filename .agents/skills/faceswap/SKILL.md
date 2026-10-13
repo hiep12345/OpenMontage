@@ -1,7 +1,6 @@
 ---
 name: faceswap
-description: |
-  Swap faces in a video using AI via the HeyGen API. Use when: (1) Replacing a face in a video with another face, (2) Face swapping from a source image onto a target video, (3) Creating personalized videos by swapping in a person's face, (4) Working with HeyGen's /v1/workflows/executions endpoint for face swap processing.
+description: Use when HeyGen face swapping is explicitly requested or selected by the approved OpenMontage workflow. Follow the selected adapter contract and existing provider, voice, source and spend approvals; generic media requests use the project router.
 allowed-tools: mcp__heygen__*
 metadata:
   openclaw:
@@ -11,251 +10,134 @@ metadata:
     primaryEnv: HEYGEN_API_KEY
 ---
 
-# Face Swap (HeyGen API)
+# Face swap with the selected HeyGen capability
 
-Swap a face from a source image into a target video using GPU-accelerated AI processing. The source image provides the face to swap in, and the target video receives the new face.
+Use the current native tool or registered adapter only after confirming it supports face swapping for this account. This skill does not establish that an old workflow endpoint or node name is still available. Inspect its actual input, status and output schema before use; if unavailable, report that gap without silently choosing another provider.
 
-## Authentication
+Preserve the approved source/identity consent, target video, provider and spend scope. Prefer a clear, well-lit source image with one face; inspect the target's visible faces, occlusion and motion before judging suitability. Do not promise support for every video or a fixed processing time. Configure credentials through the supported private settings/environment mechanism; check presence without printing values or asking for keys in chat.
 
-All requests require the `X-Api-Key` header. Set the `HEYGEN_API_KEY` environment variable.
+## Submit once, retain the accepted job
 
-```bash
-curl -X POST "https://api.heygen.com/v1/workflows/executions" \
-  -H "X-Api-Key: $HEYGEN_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"workflow_type": "FaceswapNode", "input": {"source_image_url": "https://example.com/face.jpg", "target_video_url": "https://example.com/video.mp4"}}'
-```
+Before submission, bind a unique request identity to the approved input and inspect its durable receipt. An accepted handle means resume that job. A missing receipt after an uncertain POST does not mean the provider rejected it: reconcile first, without blind resubmission. A receipt is not a provider idempotency key.
 
-## Default Workflow
+The examples below are local orchestration patterns, not HeyGen SDK methods or assertions about its API schema. Supply callbacks using the actual selected tool/adapter:
 
-1. Call `POST /v1/workflows/executions` with `workflow_type: "FaceswapNode"`, a source face image, and a target video
-2. Receive a `execution_id` in the response
-3. Poll `GET /v1/workflows/executions/{id}` every 10 seconds until status is `completed`
-4. Use the returned `video_url` from the output
+- `submit` returns its accepted execution handle and honors the supplied HTTP timeout/abort signal. Do not use submission as an authentication test.
+- `inspect` performs status lookup only and returns a **local normalized** `{state, result}` record. Map only the adapter's documented pending states to `pending`, its verified successful state/output to `completed`, and leave failed, cancelled, missing and unfamiliar states non-pending.
+- `persist` is bound to that unique request and durably saves `{provider, handle}` before returning (atomic storage with the appropriate flush/commit). Do not overwrite another request's receipt or publish signed URLs.
 
-## Execute Face Swap
+Every post-accept failure carries `handle`, including receipt open/serialization/flush failures and poll errors. If persistence fails, stop, recover the handle from the exception and save it through a working durable channel before leaving the task. Crash recovery cannot be guaranteed when all durable storage fails. Do not begin polling until persistence succeeds.
 
-### Endpoint
-
-`POST https://api.heygen.com/v1/workflows/executions`
-
-### Request Fields
-
-| Field | Type | Req | Description |
-|-------|------|:---:|-------------|
-| `workflow_type` | string | Y | Must be `"FaceswapNode"` |
-| `input.source_image_url` | string | Y | URL of the face image to swap in |
-| `input.target_video_url` | string | Y | URL of the video to apply the face swap to |
-
-### curl
-
-```bash
-curl -X POST "https://api.heygen.com/v1/workflows/executions" \
-  -H "X-Api-Key: $HEYGEN_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "workflow_type": "FaceswapNode",
-    "input": {
-      "source_image_url": "https://example.com/face-photo.jpg",
-      "target_video_url": "https://example.com/original-video.mp4"
-    }
-  }'
-```
-
-### TypeScript
-
-```typescript
-interface FaceswapInput {
-  source_image_url: string;
-  target_video_url: string;
-}
-
-interface ExecuteResponse {
-  data: {
-    execution_id: string;
-    status: "submitted";
-  };
-}
-
-async function faceswap(input: FaceswapInput): Promise<string> {
-  const response = await fetch("https://api.heygen.com/v1/workflows/executions", {
-    method: "POST",
-    headers: {
-      "X-Api-Key": process.env.HEYGEN_API_KEY!,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      workflow_type: "FaceswapNode",
-      input,
-    }),
-  });
-
-  const json: ExecuteResponse = await response.json();
-  return json.data.execution_id;
-}
-```
-
-### Python
+## Python orchestration example
 
 ```python
-import requests
-import os
-
-def faceswap(source_image_url: str, target_video_url: str) -> str:
-    payload = {
-        "workflow_type": "FaceswapNode",
-        "input": {
-            "source_image_url": source_image_url,
-            "target_video_url": target_video_url,
-        },
-    }
-
-    response = requests.post(
-        "https://api.heygen.com/v1/workflows/executions",
-        headers={
-            "X-Api-Key": os.environ["HEYGEN_API_KEY"],
-            "Content-Type": "application/json",
-        },
-        json=payload,
-    )
-
-    data = response.json()
-    return data["data"]["execution_id"]
-```
-
-### Response Format
-
-```json
-{
-  "data": {
-    "execution_id": "node-gw-f1s2w3p4",
-    "status": "submitted"
-  }
-}
-```
-
-## Check Status
-
-### Endpoint
-
-`GET https://api.heygen.com/v1/workflows/executions/{execution_id}`
-
-### curl
-
-```bash
-curl -X GET "https://api.heygen.com/v1/workflows/executions/node-gw-f1s2w3p4" \
-  -H "X-Api-Key: $HEYGEN_API_KEY"
-```
-
-### Response Format (Completed)
-
-```json
-{
-  "data": {
-    "execution_id": "node-gw-f1s2w3p4",
-    "status": "completed",
-    "output": {
-      "video_url": "https://resource.heygen.ai/faceswap/output.mp4"
-    }
-  }
-}
-```
-
-## Polling for Completion
-
-```typescript
-async function faceswapAndWait(
-  input: FaceswapInput,
-  maxWaitMs = 600000,
-  pollIntervalMs = 10000
-): Promise<string> {
-  const executionId = await faceswap(input);
-  console.log(`Submitted face swap: ${executionId}`);
-
-  const startTime = Date.now();
-  while (Date.now() - startTime < maxWaitMs) {
-    const response = await fetch(
-      `https://api.heygen.com/v1/workflows/executions/${executionId}`,
-      { headers: { "X-Api-Key": process.env.HEYGEN_API_KEY! } }
-    );
-    const { data } = await response.json();
-
-    switch (data.status) {
-      case "completed":
-        return data.output.video_url;
-      case "failed":
-        throw new Error(data.error?.message || "Face swap failed");
-      case "not_found":
-        throw new Error("Workflow not found");
-      default:
-        await new Promise((r) => setTimeout(r, pollIntervalMs));
-    }
-  }
-
-  throw new Error("Face swap timed out");
-}
-```
-
-## Usage Examples
-
-### Basic Face Swap
-
-```bash
-curl -X POST "https://api.heygen.com/v1/workflows/executions" \
-  -H "X-Api-Key: $HEYGEN_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "workflow_type": "FaceswapNode",
-    "input": {
-      "source_image_url": "https://example.com/headshot.jpg",
-      "target_video_url": "https://example.com/presentation.mp4"
-    }
-  }'
-```
-
-### Chain with Avatar Video
-
-Generate an avatar video first, then swap in a custom face:
-
-```python
+import math
 import time
 
-# Step 1: Generate avatar video
-avatar_execution_id = requests.post(
-    "https://api.heygen.com/v1/workflows/executions",
-    headers={"X-Api-Key": os.environ["HEYGEN_API_KEY"], "Content-Type": "application/json"},
-    json={
-        "workflow_type": "AvatarInferenceNode",
-        "input": {
-            "avatar": {"avatar_id": "Angela-inblackskirt-20220820"},
-            "audio_list": [{"audio_url": "https://example.com/speech.mp3"}],
-        },
-    },
-).json()["data"]["execution_id"]
+class SubmissionUnknown(RuntimeError):
+    """Submission outcome is unknown; reconcile before resending."""
 
-# Step 2: Wait for avatar video to complete
-while True:
-    status = requests.get(
-        f"https://api.heygen.com/v1/workflows/executions/{avatar_execution_id}",
-        headers={"X-Api-Key": os.environ["HEYGEN_API_KEY"]},
-    ).json()["data"]
-    if status["status"] == "completed":
-        avatar_video_url = status["output"]["video"]["video_url"]
-        break
-    time.sleep(10)
+class AcceptedJobError(RuntimeError):
+    def __init__(self, handle, phase):
+        self.handle = handle
+        self.phase = phase
+        super().__init__(f"Accepted face-swap job: {phase} failed; recover via .handle")
 
-# Step 3: Swap in a custom face
-faceswap_execution_id = faceswap(
-    source_image_url="https://example.com/custom-face.jpg",
-    target_video_url=avatar_video_url,
-)
+def faceswap_and_wait(submit, inspect, persist):
+    try:
+        handle = submit(timeout=30)
+        if not isinstance(handle, str) or not handle:
+            raise ValueError("Missing execution handle")
+    except BaseException as error:
+        raise SubmissionUnknown("Reconcile submission; do not blindly resend") from error
+    try:
+        persist({"provider": "heygen", "handle": handle})
+    except BaseException as error:
+        raise AcceptedJobError(handle, "receipt") from error
+    return resume_faceswap(handle, inspect)
+
+def resume_faceswap(handle, inspect, timeout=300, interval=10):
+    """Load the receipt and call this function; it never calls submit."""
+    try:
+        if not math.isfinite(timeout) or not math.isfinite(interval) or timeout <= 0 or interval <= 0:
+            raise ValueError("Positive timeout and interval required")
+        deadline = time.monotonic() + timeout
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise TimeoutError("Polling deadline exceeded")
+            data = inspect(handle, timeout=min(20, remaining))
+            if data.get("state") == "completed":
+                return {"handle": handle, "result": data["result"]}
+            if data.get("state") != "pending":
+                raise RuntimeError("Terminal or unrecognized state; inspect response")
+            time.sleep(min(interval, max(0, deadline - time.monotonic())))
+    except BaseException as error:
+        raise AcceptedJobError(handle, "poll") from error
 ```
 
-## Best Practices
+The wrapper preserves the original exception as its cause, including an interruption. Record the handle, then honor the stop. A local timeout does not cancel the remote job; use status reconciliation on resume. The callbacks must implement the indicated transport timeouts, without hidden submission retries.
 
-1. **Use a clear, front-facing face photo** — the source image should show a single face with good lighting
-2. **Face swap is GPU-intensive** — expect 1-3 minutes processing time, poll every 10 seconds
-3. **Source image quality matters** — higher resolution face photos produce better results
-4. **One face per source image** — the source should contain exactly one face to swap in
-5. **Works with any video** — the target video can be an avatar video, a recording, or any video with visible faces
-6. **Chain with other workflows** — generate an avatar video first, then swap in a custom face for personalization
+## TypeScript orchestration example
+
+The same local callback contract applies here. `persist` must resolve only after durable storage completes. `submit` and `inspect` must pass the supplied abort signal to their actual transport; this is not a provider-specific SDK.
+
+```typescript
+type JobState = { state: string; result?: unknown };
+type Submit = (signal: AbortSignal) => Promise<string>;
+type Inspect = (handle: string, signal: AbortSignal) => Promise<JobState>;
+type Persist = (record: { provider: string; handle: string }) => Promise<void>;
+
+class SubmissionUnknown extends Error {}
+class AcceptedJobError extends Error {
+  handle: string;
+  phase: string;
+  constructor(handle: string, phase: string, cause: unknown) {
+    super(`Accepted face-swap job: ${phase} failed; recover via .handle`, { cause });
+    this.handle = handle;
+    this.phase = phase;
+  }
+}
+
+async function faceswapAndWait(submit: Submit, inspect: Inspect, persist: Persist) {
+  let handle: string;
+  try {
+    handle = await submit(AbortSignal.timeout(30000));
+    if (typeof handle !== "string" || !handle) throw new Error("Missing execution handle");
+  } catch (cause) {
+    throw new SubmissionUnknown("Reconcile submission; do not blindly resend", { cause });
+  }
+  try {
+    await persist({ provider: "heygen", handle });
+  } catch (cause) {
+    throw new AcceptedJobError(handle, "receipt", cause);
+  }
+  return resumeFaceswap(handle, inspect);
+}
+
+async function resumeFaceswap(handle: string, inspect: Inspect,
+                              timeoutMs = 300000, intervalMs = 10000) {
+  try {
+    if (!Number.isFinite(timeoutMs) || !Number.isFinite(intervalMs) ||
+        timeoutMs <= 0 || intervalMs <= 0) throw new Error("Positive finite timing required");
+    const deadline = performance.now() + timeoutMs;
+    while (true) {
+      const remaining = deadline - performance.now();
+      if (remaining <= 0) throw new Error("Polling deadline exceeded");
+      const data = await inspect(handle, AbortSignal.timeout(Math.max(1, Math.ceil(Math.min(20000, remaining)))));
+      if (data.state === "completed") {
+        if (!("result" in data)) throw new Error("Missing completed result");
+        return { handle, result: data.result };
+      }
+      if (data.state !== "pending") throw new Error("Terminal or unrecognized state; inspect response");
+      await new Promise(resolve => setTimeout(resolve, Math.min(intervalMs, Math.max(0, deadline - performance.now()))));
+    }
+  } catch (cause) {
+    throw new AcceptedJobError(handle, "poll", cause);
+  }
+}
+```
+
+On resume, load the saved handle and call `resume_faceswap`/`resumeFaceswap` directly; neither function can submit a new job. Keep per-request receipts and collect individual results/errors if an approved batch runs concurrently.
+
+If the requested target video must first be generated by an avatar workflow, use its selected supported adapter and the same receipt/reconciliation discipline. Inspect that completed artifact before a separately authorized face-swap submission. After completion, download to a task-owned output, inspect identity fidelity and temporal artifacts, and retain provenance and the job handle with the result.

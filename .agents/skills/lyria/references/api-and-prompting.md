@@ -1,6 +1,8 @@
 # Lyria 3 API and Prompting Reference
 
-Last verified: 2026-07-18.
+Historical reference last verified: 2026-07-18. Check current official/native model
+access and prices before use. The current OpenMontage adapter also exposes
+`lyria-3.5` (default); inspect `tools/audio/google_music.py` for its actual schema.
 
 ## Provider Families
 

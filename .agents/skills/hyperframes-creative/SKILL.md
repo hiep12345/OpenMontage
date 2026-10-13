@@ -9,12 +9,10 @@ Brand, pacing, style, narration, and composition direction. Use after the techni
 
 For motion patterns, scene blueprints, transitions, and CSS marker effects, use `hyperframes-animation` — this skill is intentionally non-animation.
 
-> **Read these two FIRST for any non-trivial composition — they override web instincts:**
->
-> - `references/house-style.md` — "interpret the prompt, generate real content," the lazy-default list, and the background/foreground layer recipe. This is what turns a literal restyle into a _concept_.
-> - `references/video-composition.md` — video-medium density, scale, foreground metadata (the "produced, not generated" detailing: data bars, registration marks, monospace readouts, 8-10 elements/scene).
->
-> Skipping these is the single biggest cause of generic, web-page-looking output. They are not optional rows in the routing table below — for anything beyond a one-line edit, open both before you choose colors or write HTML.
+Read creative references only for decisions that remain open. Preserve the requested
+brand, layout, density and motion. `references/house-style.md` supplies optional
+starting points when no design exists; `references/video-composition.md` supports
+readability review at the target dimensions, not a mandatory decorative recipe.
 
 ## Workflow
 
@@ -52,10 +50,10 @@ For motion patterns, scene blueprints, transitions, and CSS marker effects, use 
 - `scripts/extract-audio-data.py` — pre-extract audio bands for audio-reactive compositions.
 - `scripts/package-loader.mjs` — support script for bundled creative tooling.
 
-Run from the repo root with explicit paths, for example:
+Resolve `SKILL_DIR` to this skill directory; run with explicit paths, for example:
 
 ```bash
-python skills/hyperframes-creative/scripts/extract-audio-data.py <audio-file>
+python "$SKILL_DIR/scripts/extract-audio-data.py" <audio-file>
 ```
 
 Animation analysis (`animation-map.mjs`) lives in `hyperframes-animation/scripts/`.

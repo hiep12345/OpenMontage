@@ -1,6 +1,6 @@
 ---
 name: agents
-description: Build voice AI agents with ElevenLabs. Use when creating voice assistants, customer service bots, interactive voice characters, or any real-time voice conversation experience.
+description: Use when ElevenLabs conversational voice agents is explicitly requested or selected by the approved OpenMontage workflow. Follow the selected adapter contract and existing provider, voice, source and spend approvals; generic media requests use the project router.
 license: MIT
 compatibility: Requires internet access and an ElevenLabs API key (ELEVENLABS_API_KEY).
 metadata: {"openclaw": {"requires": {"env": ["ELEVENLABS_API_KEY"]}, "primaryEnv": "ELEVENLABS_API_KEY"}}
@@ -145,7 +145,7 @@ Extend agents with webhook, client, or built-in system tools. Tools are defined 
 Workspace environment variables can resolve per-environment server tool URLs, headers, and auth connections, and runtime system variables such as `{{system__conversation_history}}` can pass full conversation context into tool calls when needed.
 
 ```python
-"prompt": {
+prompt_config = {
     "prompt": "You are a helpful assistant that can check the weather.",
     "llm": "gemini-2.0-flash",
     "tools": [

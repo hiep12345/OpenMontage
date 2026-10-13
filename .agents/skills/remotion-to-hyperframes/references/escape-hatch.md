@@ -84,15 +84,15 @@ verbatim — they're tuned per blocker rule:
 
 ## When NOT to bow out: warnings only
 
-Some patterns produce warnings, not blockers — translate after dropping
+Some patterns produce warnings requiring semantic inspection before translating
 the wrappers:
 
 | Rule                      | Action                                                              |
 | ------------------------- | ------------------------------------------------------------------- |
 | `r2hf/lambda-import`      | drop the `@remotion/lambda` config; HF runs single-machine, log gap |
-| `r2hf/delay-render`       | drop the call; HF handles asset readiness                           |
-| `r2hf/use-callback`       | drop the wrapper, inline the function                               |
-| `r2hf/use-memo`           | drop the wrapper, compute inline                                    |
+| `r2hf/delay-render`       | replace with verified equivalent readiness for every custom dependency; do not assume media readiness covers it                           |
+| `r2hf/use-callback`       | inline only after verifying callback identity/dependencies do not affect behavior                               |
+| `r2hf/use-memo`           | preserve the computed value and dependency semantics; inline only when equivalent                                    |
 | `r2hf/custom-hook` (pure) | inline the hook body if it's a derivation of `useCurrentFrame`      |
 | `r2hf/static-file`        | replace `staticFile("x")` with `"assets/x"`                         |
 | `r2hf/interpolate-colors` | translate to GSAP color tween (see [timing.md](timing.md))          |

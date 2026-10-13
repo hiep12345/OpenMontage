@@ -46,7 +46,7 @@ didn't specify trim.
 
 HF supports static `data-volume` only for now. Volume ramps need to be
 applied to the audio file at translation time (with ffmpeg `afade`) or the
-ramp is dropped with a translation note.
+ramp must be baked into an authorized derived audio file or implemented equivalently. Do not drop audible behavior solely to pass translation; report incompatibility if it cannot be preserved.
 
 ### Trim / playbackRate
 
@@ -130,9 +130,11 @@ useEffect(() => {
 }, []);
 ```
 
-Drop. HF waits on asset readiness via the [Frame Adapter pattern](https://hyperframes.heygen.com/concepts/frame-adapters)
-— images, videos, fonts, and Lottie animations all signal load
-completion natively. There's nothing to do at the application level.
+Inspect what `loadAsset()` awaits. Replace `delayRender` only after proving
+equivalent readiness for every dependency through the target Frame Adapter or
+an explicit supported readiness hook. Custom fetches/computation are not
+automatically covered by native image/font readiness; report incompatibility
+when the behavior cannot be preserved.
 
 ## When the asset isn't a file
 

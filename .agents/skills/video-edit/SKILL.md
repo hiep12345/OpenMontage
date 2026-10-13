@@ -25,6 +25,8 @@ sudo apt update && sudo apt install -y ffmpeg
 ffmpeg -version && ffprobe -version
 ```
 
+Use fresh task-owned output paths. Examples use `-n` to refuse overwrites; use `-y` only for an explicitly selected disposable output owned by this task.
+
 ## Quick Reference
 
 ### Get video info
@@ -36,7 +38,7 @@ ffprobe -v quiet -print_format json -show_format -show_streams video.mp4
 ### Trim
 
 ```bash
-ffmpeg -y -ss 00:00:30 -to 00:01:45 -i video.mp4 -c copy trimmed.mp4
+ffmpeg -n -ss 00:00:30 -to 00:01:45 -i video.mp4 -c copy trimmed.mp4
 ```
 
 ### Concatenate clips
@@ -46,13 +48,13 @@ ffmpeg -y -ss 00:00:30 -to 00:01:45 -i video.mp4 -c copy trimmed.mp4
 printf "file '%s'\n" clip1.mp4 clip2.mp4 clip3.mp4 > list.txt
 
 # 2. Concat with stream copy
-ffmpeg -y -f concat -safe 0 -i list.txt -c copy joined.mp4
+ffmpeg -n -f concat -safe 0 -i list.txt -c copy joined.mp4
 ```
 
 ### Resize for platform
 
 ```bash
-ffmpeg -y -i video.mp4 \
+ffmpeg -n -i video.mp4 \
   -vf "scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:black" \
   -c:a copy tiktok.mp4
 ```
@@ -61,41 +63,41 @@ ffmpeg -y -i video.mp4 \
 
 ```bash
 # 2x faster
-ffmpeg -y -i video.mp4 -filter:v "setpts=0.5*PTS" -filter:a "atempo=2.0" fast.mp4
+ffmpeg -n -i video.mp4 -filter:v "setpts=0.5*PTS" -filter:a "atempo=2.0" fast.mp4
 
 # 0.5x (slow motion)
-ffmpeg -y -i video.mp4 -filter:v "setpts=2.0*PTS" -filter:a "atempo=0.5" slow.mp4
+ffmpeg -n -i video.mp4 -filter:v "setpts=2.0*PTS" -filter:a "atempo=0.5" slow.mp4
 ```
 
 ### Extract audio
 
 ```bash
-ffmpeg -y -i video.mp4 -vn -acodec libmp3lame audio.mp3
+ffmpeg -n -i video.mp4 -vn -acodec libmp3lame audio.mp3
 ```
 
 ### Replace audio
 
 ```bash
-ffmpeg -y -i video.mp4 -i audio.mp3 -c:v copy -map 0:v:0 -map 1:a:0 -shortest output.mp4
+ffmpeg -n -i video.mp4 -i audio.mp3 -c:v copy -map 0:v:0 -map 1:a:0 -shortest output.mp4
 ```
 
 ### Compress
 
 ```bash
-ffmpeg -y -i video.mp4 -crf 23 -preset medium -c:a copy compressed.mp4
+ffmpeg -n -i video.mp4 -crf 23 -preset medium -c:a copy compressed.mp4
 ```
 
 ### Convert format
 
 ```bash
-ffmpeg -y -i video.mov output.mp4
+ffmpeg -n -i video.mov output.mp4
 ```
 
 ### Add image overlay
 
 ```bash
 # Logo in top-right corner
-ffmpeg -y -i video.mp4 -i logo.png \
+ffmpeg -n -i video.mp4 -i logo.png \
   -filter_complex "overlay=W-w-10:10" -c:a copy watermarked.mp4
 ```
 
@@ -109,7 +111,7 @@ ffmpeg -y -i video.mp4 -i logo.png \
 | Square     | 1080 x 1080 | `scale=1080:1080:force_original_aspect_ratio=decrease,pad=1080:1080:(ow-iw)/2:(oh-ih)/2:black`       |
 | Twitter/X  | 1920 x 1080 | `scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2:black`       |
 
-Use the filter with: `ffmpeg -y -i input.mp4 -vf "<filter>" -c:a copy output.mp4`
+Use the filter with: `ffmpeg -n -i input.mp4 -vf "<filter>" -c:a copy output.mp4`
 
 ## Tips
 

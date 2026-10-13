@@ -841,7 +841,7 @@ Define reusable custom utilities:
 - [ ] Move `@keyframes` inside `@theme` blocks (ensures keyframes output with theme)
 - [ ] Replace `require("tailwindcss-animate")` with native CSS animations
 - [ ] Update `h-10 w-10` to `size-10` (new utility)
-- [ ] Remove `forwardRef` (React 19 passes ref as prop)
+- [ ] Independently check the React version: React 19 may use ref as a prop; preserve `forwardRef` for React 18 consumers. Tailwind v4 does not require a React migration.
 - [ ] Consider OKLCH colors for better color perception
 - [ ] Replace custom plugins with `@utility` directives
 
@@ -860,7 +860,7 @@ Define reusable custom utilities:
 
 - **Don't use `tailwind.config.ts`** - Use CSS `@theme` instead
 - **Don't use `@tailwind` directives** - Use `@import "tailwindcss"`
-- **Don't use `forwardRef`** - React 19 passes ref as prop
+- **Gate ref changes on React version** — React 19 supports ref as a prop; keep `forwardRef` for React 18 compatibility.
 - **Don't use arbitrary values** - Extend `@theme` instead
 - **Don't hardcode colors** - Use semantic tokens
 - **Don't forget dark mode** - Test both themes

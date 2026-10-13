@@ -1,7 +1,6 @@
 ---
 name: visual-style
-description: |
-  Create, extract, and apply portable visual design systems via visual-style.md files. Use when: (1) Creating a visual-style.md design system from scratch, (2) Extracting a visual style from a website URL, video, or PDF brand guide, (3) Applying a visual style to HeyGen videos, HTML slides, Figma, or paper.design, (4) Browsing the gallery of pre-built visual styles (Swiss, Saul Bass, Game Boy, etc.), (5) User mentions "visual style", "design system", "brand style", or "style guide", (6) Styling a HeyGen video with a consistent design language.
+description: Create, extract, apply or browse a portable visual-style.md system when that artifact or workflow is requested. Preserve an established design system; generic styling questions do not require a new style interview.
 ---
 
 # Visual Style
@@ -21,7 +20,7 @@ Create, extract, and apply portable visual design systems. A `visual-style.md` f
 
 ### Create
 
-1. **Gather vibe** — Ask about mood, era, references, inspiration
+1. **Recover the brief** — Reuse established mood, references and brand rules; ask only for missing choices that affect the result.
 2. **Define colors** — Primary (2+), accent, neutrals with hex values and roles
 3. **Set typography** — Display, body, caption families + weight/style rules
 4. **Layout & motion** — Grid system, transitions, pacing
@@ -29,7 +28,7 @@ Create, extract, and apply portable visual design systems. A `visual-style.md` f
 6. **Preview** — Show a small HTML swatch or describe the visual result
 7. **Optionally apply** — Ask if user wants to use it with a connector
 
-Questions to batch:
+Optional questions when not already answered by the brief:
 1. What's the vibe? (mood keywords, era, references)
 2. Any specific colors? (or derive from the vibe?)
 3. Typography preference? (clean, editorial, technical, playful?)

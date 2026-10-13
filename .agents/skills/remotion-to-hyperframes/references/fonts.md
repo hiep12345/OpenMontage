@@ -84,7 +84,7 @@ need to minimize font drift in the validation harness.
 Remotion uses `delayRender()` to defer the first frame until fonts
 load. HF's compiler inlines Google Fonts at compile time and waits
 on `@font-face` readiness via the Frame Adapter pattern — the
-`delayRender` call drops in translation. See [media.md](media.md).
+`delayRender` call can be removed only after verifying equivalent font and custom-asset readiness. See [media.md](media.md).
 
 ## Multi-weight loading
 

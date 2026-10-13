@@ -155,7 +155,7 @@ Propose 2–3 brief creative directions (3–4 sentences each) with different **
 >
 > **Option C — Demonstration (narrated walkthrough):** Three composed UI scenes — kanban from cards-as-divs, AI chat with typewriter narration sync, command palette with character-typed search — each in the brand palette with the captured logo stamped top-left as identity. CSS crossfades between. Narration walks each one. ~35s, full VO.
 
-Each option states: the arc, the primary visuals carrying it (composed or captured — whichever fits the beat), and any brand accents layered on top. **Never** an option whose primary content is a pasted product-UI screenshot — if you find yourself writing one, flip it: name what gets composed instead. Captured SVGs, illustrations, hero art, and brand photography are fine as primary visuals when the concept calls for them.
+Each option states: the arc, the primary visuals carrying it (composed or captured — whichever fits the beat), and any brand accents layered on top. Captured product-UI screenshots may be primary content when the approved brief calls for a faithful site showcase; assess readability and source fidelity. Captured SVGs, illustrations, hero art, and brand photography are fine as primary visuals when the concept calls for them.
 
 Let the user pick one or combine elements.
 

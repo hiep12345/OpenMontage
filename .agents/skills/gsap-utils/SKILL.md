@@ -129,7 +129,7 @@ gsap.to(".x", { x: 200, snap: { x: 20 } });
 
 ### shuffle(array)
 
-Returns a new array with the same elements in random order. Use for randomizing order (e.g. stagger from "random" with a copy).
+Shuffles the supplied array in place and returns that same array. Pass a copy (`gsap.utils.shuffle([...items])`) when the original order must be preserved.
 
 ```javascript
 gsap.utils.shuffle([1, 2, 3, 4]); // e.g. [3, 1, 4, 2]
@@ -191,13 +191,15 @@ gsap.utils.getUnit("50%");     // "%"
 gsap.utils.getUnit(42);        // "" (unitless)
 ```
 
-### unitize(value, unit)
+### unitize(function, unit?)
 
-Appends a unit to a number, or returns the value as-is if it already has a unit. Use when building CSS values or tween end values.
+Wraps a numeric function: parses the input, calls the function, then appends the supplied unit (or the input unit when omitted).
 
 ```javascript
-gsap.utils.unitize(100, "px");  // "100px"
-gsap.utils.unitize("2rem", "px"); // "2rem" (unchanged)
+const doublePx = gsap.utils.unitize(value => value * 2, "px");
+doublePx(100); // "200px"
+const clampWithUnit = gsap.utils.unitize(gsap.utils.clamp(0, 100));
+clampWithUnit("150rem"); // "100rem"
 ```
 
 ### splitColor(color, returnHSL?)

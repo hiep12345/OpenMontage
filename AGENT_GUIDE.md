@@ -207,25 +207,22 @@ The `decision_log` is the board's Decisions rail and the run's audit trail. It i
 
 Editing only a downstream artifact (the `asset_manifest`, a prop) while leaving the old decision in the log is a defect: the board keeps showing the stale choice (e.g. `voice → openai_onyx` after the user moved to Chirp3). The board identifies a decision by its **(category, subject) pair** and renders the latest entry for that pair as current (tagged "revised") — so the fix is to append the new entry with an identical `subject`, never to silently mutate the old one or reword the subject (a reworded subject reads as a different decision and both will show). Keeping distinct decisions in one category (e.g. TTS vs image `provider_selection`) is exactly why the pair, not the category alone, is the key. This applies at every stage, not just `idea`.
 
-### Present Both Composition Runtimes (HARD RULE)
+### Composition Runtime Selection
 
-When both Remotion and HyperFrames are available on the machine (check `video_compose.get_info()["render_engines"]`), the agent **MUST present both options to the user** before locking `render_runtime` at the proposal stage. The agent MAY recommend one with rationale — but silently picking a "default" is forbidden even when the pipeline manifest or a director skill suggests one.
+Preserve a runtime already selected by the user or recorded in an approved brief,
+including a new actionable brief with exact choices. Verify its current availability
+from `video_compose.get_info()["render_engines"]`; an unavailable selected runtime is
+a concrete blocker, not permission to silently substitute another.
 
-This is an initial-selection or material-revision gate. An exact approved resume
-retains the recorded runtime and shortlist without asking the user to select again;
-verify current availability and surface blockers rather than silently swapping.
+When runtime choice is unresolved, compare the relevant available options for this
+brief, explain material tradeoffs and recommend one. Present both Remotion and
+HyperFrames when they are genuine alternatives for the requested outcome; no full
+menu or repeat approval is required after an exact authorized choice. Record the
+selected runtime, relevant alternatives and rationale in `decision_log`.
 
-The presentation MUST include, for each runtime:
-
-1. A one-sentence plain-language description of what it is best at for **this specific brief**.
-2. A one-sentence honest tradeoff (why it might not be the right pick here).
-3. The agent's recommendation and the reason, tied to the brief's delivery_promise and visual approach.
-
-Then wait for explicit user approval before advancing. Record the full shortlist — BOTH runtimes plus any "ffmpeg" option that applies — as `options_considered` in the `render_runtime_selection` decision logged in `decision_log`. A decision log entry with only one runtime considered when both were available is a CRITICAL reviewer finding.
-
-Exception: if only one runtime is available on the machine, the agent proceeds with it but MUST say so explicitly ("HyperFrames isn't installed on this machine; I'm proceeding with Remotion. Install HyperFrames if you want the alternative."). The `render_runtime_selection` decision still records the unavailable option as `rejected_because: "runtime not available on this machine"`.
-
-This rule applies to every pipeline that invokes `video_compose` — not just Wave 1. A pipeline's director skill may recommend a runtime, but that recommendation is input to the conversation with the user, not a decision.
+The manifest's approval gates, selected budget and publication boundaries remain
+binding. Material changes require the applicable new authorization and an appended
+decision entry; existing exact authorization is preserved for unchanged work.
 
 ### Composition Authoring Mode — Templated vs Atelier
 
@@ -392,72 +389,31 @@ Then:
 4. Report one of: `passed`, `degraded`, or `blocked`.
 5. Do not start production until the user understands the real capability envelope.
 
-### Provider Menu (Mandatory at Preflight)
+### Task-Relevant Capability Discovery
 
-Already fetched via `provider_menu_summary()` above. Read that output and **present it to the user as a capability menu**, not as a flat tool list. Use `provider_menu()` directly only when you need the per-tool detail the summary collapses.
+Use `provider_menu_summary()` to inspect capabilities needed by the selected
+pipeline. Configuration is not proof of provider entitlement or successful calls.
+Report relevant unavailable tools, degraded behavior and cost/budget uncertainty.
+Preserve exact provider/model choices already authorized in the request or records.
 
-**How to present:**
+For an unresolved choice or requested exploration, present a concise shortlist
+from the registry, with material tradeoffs and a recommendation. Use the detailed
+`provider_menu()` only for the relevant capability. Do not make the user review a
+full catalog or setup options for unused providers just to continue an approved
+task.
 
-```
-YOUR CAPABILITIES
+### Setup Offers for Relevant Blockers
 
-  Video Generation:  0/13 configured
-  Image Generation:  1/7 configured
-  Text-to-Speech:    1/3 configured
-  Music Generation:  1/1 configured
-  Composition:       3/3 configured (FFmpeg, video_stitch, video_trimmer)
+Offer setup help when a missing capability blocks the requested or selected path,
+or the user asks to explore it. Read that tool's current `install_instructions`;
+explain the concrete requirement and applicable cost/privacy implications. Keep
+secrets in approved local configuration, not chat or diagnostic logs.
 
-  You can produce videos now with images + TTS + FFmpeg.
-  Quick upgrades available — see below.
-```
-
-For EACH capability with unavailable providers, read the `install_instructions` field from the menu output and present setup options grouped by effort:
-
-```
-QUICK SETUP OPTIONS (1-minute each — set an env var in .env)
-
-  Video Generation (0/13 -> unlock the biggest upgrade):
-    Each unavailable provider lists its own install_instructions.
-    Read them from the provider_menu output and present grouped by env var.
-    Example: if 3 tools need FAL_KEY, group them: "FAL_KEY unlocks 3 providers"
-
-  Image Generation (1/7 -> more style options):
-    Same pattern — read install_instructions from each unavailable tool.
-
-  Text-to-Speech (1/3):
-    Same pattern.
-
-LOCAL OPTIONS (free, needs hardware):
-  Tools with runtime=LOCAL or runtime=LOCAL_GPU — read from the menu.
-
-Already Available:
-  List what's working. The user should feel good about what they have.
-```
-
-**Rules:**
-- Do NOT hardcode provider names, API key names, or setup URLs in your prompts.
-  Read them from the registry's `install_instructions` field on each tool.
-- Always show the ratio: "X of Y configured" — this makes breadth visible.
-- Group by capability, not by individual tool.
-- Show what they CAN do now, then what they COULD unlock.
-- If the user declines setup, proceed with the best available path — no nagging.
-- If a tool shares an env var with others, group them (read from `dependencies` field).
-
-### Setup Offer Protocol
-
-When tools are `UNAVAILABLE` but can be fixed with simple configuration, **offer the user setup help instead of silently working around the limitation.** Many tools are one env var away from working.
-
-| Fix Complexity | Action |
-|----------------|--------|
-| **1-minute fix** (env var) | Offer to help configure now — read `install_instructions` from the tool |
-| **5-minute fix** (install) | Explain what to install and why — read `install_instructions` from the tool |
-| **Complex fix** (GPU, model download) | Note the limitation, explain what it would unlock, move on |
-
-**Rules:**
-- Always tell the user what they're missing AND what they'd gain
-- Show the cost difference (free local vs. paid API)
-- If the user declines setup, proceed with the best available path — no nagging
-- Group related fixes (tools sharing the same env var dependency)
+An available fallback can proceed only within existing exact authorization.
+Otherwise prepare the alternative and obtain the needed decision before its
+consequential use. Continue independent authorized work while a genuine blocker
+is unresolved. Do not install dependencies, switch provider or add paid samples
+merely because a setup option exists.
 
 ### Composition Runtimes (Inside video_compose)
 
@@ -607,41 +563,32 @@ Selectors route based on: user preference > availability > discovery order. They
 
 ## User-Facing Planning Protocol
 
-For a new production or material plan revision, before committing to execution,
-present the relevant choices below. An unchanged approved resume retains the
-recorded plan and approvals under **Approved Production Resume**:
+Recover the requested outcome, exact selected choices, existing authorization,
+budget and relevant manifest gates. This applies to new production as well as an
+approved resume. A new request with exact choices does not require rediscovering
+or reconfirming those choices.
 
-1. `4-5` concept directions when the brief is still open.
-2. Recommended pipeline.
-3. Recommended tool path.
-4. Alternative tool paths that are actually available.
-5. Cost estimate and quality tradeoffs.
-6. **Music plan** — mandatory for every pipeline that has audio. See below.
-7. Production plan by stage.
-8. Approval gate before asset generation.
+When the brief is open, propose enough distinct directions to resolve it; no fixed
+concept count is required. Explain the recommended pipeline/tool path, material
+alternatives, cost uncertainty and stage plan. Ask only unresolved decisions that
+materially affect the outcome. Record the agreed scope before dependent generation
+and preserve the manifest's actual asset/proposal approval gates.
 
-If a user prefers a specific vendor and that tool is available, surface it directly. Do not hide provider choice.
+Reuse exact recorded approval for its scope. A materially changed plan, provider,
+runtime or budget still requires applicable authorization and append-only decision
+history; production approval does not authorize publishing.
 
-### Music Plan (Mandatory)
+### Music Choice
 
-Music is a critical part of any video. **Surface the music situation to the user at proposal/idea time** — do not silently defer it to the asset stage where a failure becomes expensive. An exact approved resume keeps the recorded music choice (including an approved no-music choice); reopen selection only when that choice is missing, blocked or materially changed.
+Establish the requested music or no-music choice before dependent asset work.
+Reuse a track, provider, voice or no-music choice already authorized for the exact
+scope. When the choice is unresolved, inspect only the relevant library, search or
+generation capability and offer useful options with licensing/cost implications.
+No mandatory tour of every music provider is needed.
 
-Check music availability in this order and present the options:
-
-1. **User music library:** Check `registry.get_by_capability("music_library")` and inspect `music_library/`. If tracks exist, list durations and let the user pick one.
-2. **Royalty-free search:** Check `registry.get_by_capability("music_search")` for configured search/download tools. Report licensing constraints and whether a key is required.
-3. **Music generation APIs:** Check `registry.get_by_capability("music_generation")`. Report status, quota, cost, and quality tradeoffs honestly.
-4. **Bring your own:** Note that the user can provide a track (for example from YouTube Audio Library or Jamendo) through the `music_library/` drop path.
-
-**Always present the user with explicit choices:**
-- Use a track from their library (which one?)
-- Provide a different track (drop it in `music_library/`)
-- Generate one via API (if available — name the provider and cost)
-- Proceed without music
-
-**If no music source is available:** Tell the user explicitly. Do NOT let this surface as a surprise at the asset stage.
-
-Record the music decision in the proposal/brief artifact so the asset director knows what to do.
+If a required selected source is unavailable, report that blocker and prepare
+alternatives without silently dropping music or changing provider. Record the
+chosen source and its provenance in the proposal/brief for the asset stage.
 
 ## Pipeline Asset Expectations
 
@@ -777,9 +724,9 @@ The `.agents/skills/` directory is large. When you're not coming in through a to
 | **Animation knowledge (generic)** | `gsap-core`, `gsap-timeline`, `gsap-plugins` (SplitText / MorphSVG / DrawSVG / MotionPath / Flip / CustomEase), `gsap-utils`, `gsap-react`, `gsap-performance`, `gsap-scrolltrigger`, `gsap-frameworks`, `framer-motion` (Disney 12 principles), `lottie-bodymovin` (Lottie export) |
 | **Character animation** | `character-rigging`, `svg-character-animation`, `pose-library-design`, `canvas-procedural-animation`, `character-animation-qa` |
 | **Image generation** | `bfl-api`, `flux-best-practices` |
-| **Video generation** | `seedance-2-0` (preferred premium default — cinematic, trailer, multi-shot, synced audio, lip-sync), `gemini-omni` (conversational video editing, reference tags, timecoded beats), `ai-video-gen`, `ltx2` |
+| **Video generation** | `seedance-2-0` (when the selected adapter/model supports the requested cinematic, multi-shot or audio workflow), `gemini-omni` (conversational video editing, reference tags, timecoded beats), `ai-video-gen`, `ltx2` |
 | **Audio** | `elevenlabs`, `music`, `sound-effects`, `acestep`, `text-to-speech`, `azure-text-to-speech` (optional cloud TTS — tool `azure_tts`, same Speech key as `azure_stt`), `setup-api-key` |
-| **Speech-to-text** | `speech-to-text` (whisper `transcriber` — default, offline), `azure-speech-to-text` (optional cloud STT — tool `azure_stt`, preferred when `AZURE_SPEECH_KEY` is set) |
+| **Speech-to-text** | Registered `transcriber` / selected `video-understand` local transcription contract (offline only with required dependencies and weights already installed); `speech-to-text` is ElevenLabs Scribe cloud and applies only when selected, `azure-speech-to-text` (optional cloud STT — tool `azure_stt`, when Azure is selected and actual account access is verified) |
 | **Avatar / lip-sync** | `avatar-video`, `heygen`, `create-video`, `faceswap`, `video-translate`, `agents` |
 | **Capture** | `playwright-recording` (browser flows), `ffmpeg` (post) |
 | **Visualization** | `beautiful-mermaid`, `d3-viz`, `manim-composer`, `manimce-best-practices`, `manimgl-best-practices` |
@@ -811,6 +758,6 @@ The `.agents/skills/` directory is large. When you're not coming in through a to
 - Before offering a direct vendor credential, check the registry for an available wrapper through an already configured provider (for example, a partner model hosted by fal.ai).
 - Do not begin asset generation before user approval on the production plan.
 - Do not hide degraded paths. Record substitutions and blocked options explicitly.
-- Do not present a single unavailable tool in isolation. Always show the full capability picture: "X of Y providers configured for this capability."
-- Do not skip the Provider Menu at preflight. The user must see what they have AND what they could unlock.
+- For an unavailable capability that blocks this task, explain the relevant supported alternatives and preserve the authorized provider/runtime. Do not expand an exact approved task into a full provider catalog.
+- Use Task-Relevant Capability Discovery at preflight. A provider menu is useful only for an unresolved choice; existing exact authorization does not require another menu.
 - Do not change provider, model, or render path without telling the user first and getting approval when the change is material.

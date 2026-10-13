@@ -1,60 +1,21 @@
 ---
 name: ltx2
-description: AI video generation with LTX-2.3 22B — text-to-video, image-to-video clips for video production. Use when generating video clips, animating images, creating b-roll, animated backgrounds, or motion content. Triggers include video generation, animate image, b-roll, motion, video clip, text-to-video, image-to-video.
+description: Use when LTX video prompting or a supported LTX workflow is explicitly requested or selected by the approved OpenMontage workflow. Follow the selected adapter contract and existing provider, voice, source and spend approvals; generic media requests use the project router.
 ---
 
-# LTX-2.3 Video Generation
+# LTX video prompting
 
-Generate ~5 second video clips from text prompts or images using the LTX-2.3 22B DiT model.
-Runs on Modal (A100-80GB). Requires `MODAL_LTX2_ENDPOINT_URL` in `.env`.
+Use the approved registered adapter: this checkout includes `ltx_video_local`,
+`ltx_video_modal`, `ltx_api_video`, and `comfyui_video` under `tools/video/`.
+Inspect `tools/tool_registry.py` and that adapter's schema before a call; their
+models, parameters and resource requirements differ. For a ComfyUI graph read
+[ComfyUI](../comfyui/SKILL.md), preserving model-stack and output-node provenance.
+The former `tools/ltx2.py` and `docker/modal-ltx2/app.py` standalone examples are
+not shipped here and must not be executed or recreated as an implicit setup step.
 
-## Quick Reference
-
-```bash
-# Text-to-video
-python3 tools/ltx2.py --prompt "A sunset over the ocean, golden light on waves, cinematic" --output sunset.mp4
-
-# Image-to-video (animate a still image)
-python3 tools/ltx2.py --prompt "Gentle camera drift, soft ambient motion" --input photo.jpg --output animated.mp4
-
-# Custom resolution and duration
-python3 tools/ltx2.py --prompt "..." --width 1024 --height 576 --num-frames 161 --output wide.mp4
-
-# Fast mode (fewer steps, quicker)
-python3 tools/ltx2.py --prompt "..." --quality fast --output quick.mp4
-
-# Reproducible output
-python3 tools/ltx2.py --prompt "..." --seed 42 --output reproducible.mp4
-```
-
-## Parameters
-
-| Parameter | Default | Description |
-|-----------|---------|-------------|
-| `--prompt` | (required) | Text description of the video |
-| `--input` | - | Input image for image-to-video |
-| `--width` | 768 | Video width (divisible by 64) |
-| `--height` | 512 | Video height (divisible by 64) |
-| `--num-frames` | 121 | Frame count, must satisfy `(n-1) % 8 == 0` |
-| `--fps` | 24 | Frames per second |
-| `--quality` | standard | `standard` (30 steps) or `fast` (15 steps) |
-| `--steps` | 30 | Override inference steps directly |
-| `--seed` | random | Seed for reproducibility |
-| `--output` | auto | Output file path |
-| `--negative-prompt` | sensible default | What to avoid |
-
-## Valid Frame Counts
-
-`(n - 1) % 8 == 0`: 25 (~1s), 49 (~2s), 73 (~3s), 97 (~4s), **121 (~5s default)**, 161 (~6.7s), 193 (~8s max practical).
-
-## Common Resolutions
-
-| Resolution | Ratio | Notes |
-|------------|-------|-------|
-| 768x512 | 3:2 | Default, good balance |
-| 512x512 | 1:1 | Square, fastest |
-| 1024x576 | 16:9 | Widescreen |
-| 576x1024 | 9:16 | Portrait/vertical |
+Verify current model access, pricing, licensing, duration/frame constraints and
+hardware against the selected adapter and official source when used. Keep the
+approved model/runtime/spend. Probe and inspect generated clips before acceptance.
 
 ## Prompting Guide
 
@@ -99,78 +60,3 @@ Keep prompts under 200 words. Be specific about the scene.
 # Describing text/UI (model can't render text reliably)
 "A website showing the text 'Welcome to our platform'"
 ```
-
-## Video Production Use Cases
-
-### B-Roll Clips
-Generate atmospheric 5s shots for cutaways between narrated scenes:
-```bash
-python3 tools/ltx2.py --prompt "Futuristic holographic interface, glowing data visualizations, clean workspace, cinematic" --output broll_tech.mp4
-python3 tools/ltx2.py --prompt "Aerial view of European city at golden hour, modern architecture" --output broll_europe.mp4
-```
-
-### Animated Slide Backgrounds
-Feed a slide screenshot and add subtle motion:
-```bash
-python3 tools/ltx2.py --prompt "Gentle particle effects, soft ambient light shifts, very slight camera drift" --input slide.png --output animated_slide.mp4
-```
-
-### Animated Portraits
-Bring still headshots to life:
-```bash
-python3 tools/ltx2.py --prompt "Subtle natural head movement, warm expression, professional lighting" --input headshot.png --output animated_portrait.mp4
-```
-
-### Branded Intro/Outro
-Generate abstract motion backgrounds for title cards:
-```bash
-python3 tools/ltx2.py --prompt "Dark moody background with flowing blue and coral light streaks, bokeh particles, cinematic tech atmosphere, no text" --output intro_bg.mp4
-```
-
-### Combining with Other Tools
-
-LTX-2 generates raw clips. Combine with the rest of the toolkit:
-
-| Workflow | Tools |
-|----------|-------|
-| Generate clip → upscale | `ltx2.py` → `upscale.py` |
-| Generate clip → add to Remotion | `ltx2.py` → use as `<OffthreadVideo>` in composition |
-| Generate image → animate | `flux2.py` → `ltx2.py --input` |
-| Generate clip → extract audio | `ltx2.py` → `ffmpeg -i clip.mp4 -vn audio.wav` |
-| Generate clip → add voiceover | `ltx2.py` → mix with `qwen3_tts.py` output |
-
-## Technical Details
-
-- **Model:** LTX-2.3 22B DiT (Lightricks), bf16
-- **GPU:** A100-80GB on Modal (~$4.68/hr)
-- **Inference:** ~2.5 min per clip (768x512, 121 frames, 30 steps)
-- **Cost:** ~$0.20-0.25 per 5s clip
-- **Cold start:** ~60-90s (loading ~55GB weights)
-- **Output:** H.264 MP4 with synchronized ambient audio (24fps)
-- **Max duration:** ~8s (193 frames) per clip
-
-### Known Limitations
-
-- **Training data artifacts:** ~30% of generations may have unwanted logos/text from training data. Re-run with different `--seed`.
-- **Text rendering:** Cannot reliably generate readable text in video. Use Remotion overlays instead.
-- **Max duration:** ~8s per clip. Longer content needs stitching.
-- **Audio:** Generated audio is ambient/environmental only. Use voiceover/music tools for speech and music.
-- **License:** Community License — free under $10M revenue, commercial license needed above that.
-
-## Setup
-
-```bash
-# 1. Create Modal secret for HuggingFace (one-time)
-modal secret create huggingface-token HF_TOKEN=hf_your_token
-
-# 2. Deploy (downloads ~55GB of weights, takes ~10 min)
-modal deploy docker/modal-ltx2/app.py
-
-# 3. Save endpoint URL to .env
-echo "MODAL_LTX2_ENDPOINT_URL=https://yourname--video-toolkit-ltx2-ltx2-generate.modal.run" >> .env
-
-# 4. Test
-python3 tools/ltx2.py --prompt "A candle flickering on a dark table, cinematic" --output test.mp4
-```
-
-**Important:** HuggingFace token needs read-access scope. Accept the [Gemma 3 license](https://huggingface.co/google/gemma-3-12b-it-qat-q4_0-unquantized) before deploying. Unauthenticated downloads are severely rate-limited.

@@ -31,8 +31,8 @@ See [sequencing.md](sequencing.md) for nesting and stagger details.
 | ------------------------------------------ | --------------------------------------------------------------------------------------------------------- |
 | `<Sequence from={F} durationInFrames={D}>` | `<div data-start="<F/fps>" data-duration="<D/fps>" data-track-index="N">`                                 |
 | `<Series>` + `<Series.Sequence>`           | siblings with sequential `data-start` values                                                              |
-| `<Loop durationInFrames={D}>`              | not a primitive — emit a custom GSAP `repeat: -1` loop with manual offset math                            |
-| `<Freeze frame={F}>`                       | drop the wrapper; HF doesn't have running animation outside the seek-driven timeline so freeze is a no-op |
+| `<Loop durationInFrames={D}>`              | translate frame modulo/offset semantics with a finite repeat count bounded by the composition duration                            |
+| `<Freeze frame={F}>`                       | evaluate descendants at the specified frozen source frame; preserve that value across the wrapper duration, including nested frame offsets |
 
 ## Timing
 
@@ -62,7 +62,7 @@ See [media.md](media.md) for trim, volume ramps, and decoder notes.
 | `<Img src>`                            | `<img>`                                                                     |
 | `<IFrame src>`                         | `<iframe>` — HF auto-falls back to screenshot mode for nested iframes       |
 | `staticFile("x.png")`                  | `"assets/x.png"` — copy the file into `hf-src/assets/` next to `index.html` |
-| `delayRender()` / `continueRender()`   | drop — HF waits on asset readiness via the Frame Adapter pattern            |
+| `delayRender()` / `continueRender()`   | replace with equivalent verified readiness using the Frame Adapter pattern, including custom dependencies            |
 
 ## Transitions
 
@@ -114,8 +114,8 @@ See [parameters.md](parameters.md).
 | `useState` driving animation                       | **refuse + interop**                                             |
 | `useReducer` driving animation                     | **refuse + interop**                                             |
 | `useEffect(fn, [deps])` (non-empty deps)           | **refuse + interop**                                             |
-| `useEffect(fn, [])` (mount-once side effect)       | drop the effect; use `queueMicrotask` if startup work is needed  |
-| `useCallback`, `useMemo`                           | drop the wrappers — decorative                                   |
+| `useEffect(fn, [])` (mount-once side effect)       | preserve startup work, dependencies and cleanup using the target readiness/lifecycle contract  |
+| `useCallback`, `useMemo`                           | inspect semantics; preserve computed values and callback behavior with deterministic equivalents                                   |
 | Custom hook (pure derivation of `useCurrentFrame`) | inline the body                                                  |
 | Custom hook with state/effects                     | refuse + interop                                                 |
 

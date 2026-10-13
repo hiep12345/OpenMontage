@@ -16,7 +16,7 @@ Use this skill when integrating BFL FLUX APIs into applications for image genera
 **Before generating images, verify your API key is set:**
 
 ```bash
-echo $BFL_API_KEY
+[ -n "$BFL_API_KEY" ] && echo "BFL_API_KEY configured" || echo "BFL_API_KEY missing"
 ```
 
 If empty or you see "Not authenticated" errors, see [API Key Setup](#api-key-setup) below.
@@ -152,17 +152,13 @@ FLUX.2 models support multiple input images for combining elements, style transf
 ### Quick Check
 
 ```bash
-echo $BFL_API_KEY
+[ -n "$BFL_API_KEY" ] && echo "BFL_API_KEY configured" || echo "BFL_API_KEY missing"
 ```
 
 ### If Not Set
 
 1. **Get a key**: Go to https://dashboard.bfl.ai/get-started → Click **"Create Key"** → Select organization
-2. **Save to `.env`** (recommended for persistence):
-   ```bash
-   echo 'BFL_API_KEY=bfl_your_key_here' >> .env
-   echo '.env' >> .gitignore  # Don't commit secrets
-   ```
+2. Configure the key privately in the provider connector or an ignored local environment file using a secure editor. Never paste secrets into chat, command arguments or logs. Report presence only.
 
 See [references/api-key-setup.md](references/api-key-setup.md) for detailed setup instructions.
 

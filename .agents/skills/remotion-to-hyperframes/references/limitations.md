@@ -32,8 +32,7 @@ Remotion accepts a function for `volume`:
 ```
 
 HF supports static `data-volume` only. Translation: bake the ramp into
-the audio file at translation time using `ffmpeg afade`, OR drop the
-ramp with a note. The dropped-ramp path produces audibly different
+the audio file at translation time using `ffmpeg afade`, or report an unsupported fidelity requirement. Do not drop the ramp without explicit acceptance of the audible change. Dropping it produces audibly different
 output but visually-identical video, so SSIM passes — just flag it.
 
 ### `<Loop>` with stateful children

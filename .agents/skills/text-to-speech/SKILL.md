@@ -1,7 +1,6 @@
 ---
 name: text-to-speech
-description: |
-  Generate speech audio from text using HeyGen's Starfish TTS model. Use when: (1) Generating standalone speech audio files from text, (2) Converting text to speech with voice selection, speed, and pitch control, (3) Creating audio for voiceovers, narration, or podcasts, (4) Working with HeyGen's /v1/audio endpoints, (5) Listing available TTS voices by language or gender.
+description: Use when HeyGen Starfish speech synthesis is explicitly requested or selected by the approved OpenMontage workflow. Follow the selected adapter contract and existing provider, voice, source and spend approvals; generic media requests use the project router.
 allowed-tools: mcp__heygen__*
 metadata:
   openclaw:

@@ -245,8 +245,8 @@ controls.addEventListener("unlock", () => {
 // Movement
 const velocity = new THREE.Vector3();
 const direction = new THREE.Vector3();
-const moveForward = false;
-const moveBackward = false;
+let moveForward = false;
+let moveBackward = false;
 
 document.addEventListener("keydown", (event) => {
   switch (event.code) {
@@ -258,6 +258,12 @@ document.addEventListener("keydown", (event) => {
       break;
   }
 });
+
+document.addEventListener("keyup", (event) => {
+  if (event.code === "KeyW") moveForward = false;
+  if (event.code === "KeyS") moveBackward = false;
+});
+window.addEventListener("blur", () => { moveForward = moveBackward = false; });
 
 function animate() {
   if (controls.isLocked) {
@@ -589,9 +595,9 @@ class InteractionManager {
   bindEvents() {
     const canvas = this.renderer.domElement;
 
-    canvas.addEventListener("click", (e) => this.onClick(e));
-    canvas.addEventListener("mousemove", (e) => this.onMouseMove(e));
-    canvas.addEventListener("touchstart", (e) => this.onTouchStart(e));
+    this.handleClick = (event) => this.onClick(event);
+    canvas.addEventListener("click", this.handleClick);
+    // Pointer-generated clicks also work for ordinary touch activation.
   }
 
   updateMouse(event) {
@@ -623,7 +629,8 @@ class InteractionManager {
   }
 
   dispose() {
-    // Remove event listeners
+    this.renderer.domElement.removeEventListener("click", this.handleClick);
+    this.clickables.length = 0;
   }
 }
 

@@ -44,10 +44,10 @@ When in doubt, default to authoring a native HyperFrames composition with `/gene
 Run [`scripts/lint_source.py`](scripts/lint_source.py) over the Remotion source directory. The lint detects patterns that can't translate cleanly:
 
 - **Blockers** (refuse + recommend interop): `useState`, `useReducer`, `useEffect`/`useLayoutEffect` with non-empty deps, async `calculateMetadata`, third-party React UI libraries (MUI, Chakra, Mantine, antd, shadcn, Radix, NextUI).
-- **Warnings** (translate after dropping the construct): `@remotion/lambda` config, `delayRender`, `useCallback`, `useMemo`, custom hooks.
+- **Warnings** (inspect semantics before translation): `@remotion/lambda` config, `delayRender`, `useCallback`, `useMemo`, custom hooks.
 - **Info** (translate with note): `staticFile`, `interpolateColors`.
 
-If any blocker fires, **stop**. Read [`references/escape-hatch.md`](references/escape-hatch.md) and surface the recommendation message. Warnings don't stop translation — drop the offending construct in step 3 and note the gap in `TRANSLATION_NOTES.md`. `@remotion/lambda` config is the canonical warning case: the skill drops the import + `renderMediaOnLambda(...)` calls but translates the rest of the composition.
+If any blocker fires, **stop**. Read [`references/escape-hatch.md`](references/escape-hatch.md) and surface the recommendation message. Warnings require semantic inspection: preserve computation, callback identity where relevant, custom-hook behavior and readiness dependencies with an equivalent mechanism. Stop/report incompatibility if fidelity cannot be preserved; a note alone does not authorize dropping behavior. `@remotion/lambda` config is the canonical warning case: the skill drops the import + `renderMediaOnLambda(...)` calls but translates the rest of the composition.
 
 ### Step 2: Plan the translation
 

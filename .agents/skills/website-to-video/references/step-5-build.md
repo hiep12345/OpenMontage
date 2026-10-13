@@ -20,9 +20,7 @@ Load the `hyperframes` skill — it has the rules for data attributes, timeline 
 ## 1. Copy SFX to project
 
 ```bash
-cp -r skills/website-to-video/assets/sfx/ <project-dir>/sfx/
-# If skill is installed elsewhere:
-find . -path "*/website-to-video/assets/sfx" -exec cp -r {} <project-dir>/sfx/ \;
+cp -r "$SKILL_DIR/assets/sfx/" <project-dir>/sfx/  # only storyboard-selected SFX
 ```
 
 ## 2. Build the root index.html
@@ -95,13 +93,13 @@ SFX were assigned in the storyboard (Step 3) — implement exactly what STORYBOA
 | Pacing                        | Architecture                                                                                                                                                                         | Why                                                                                     |
 | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------- |
 | **Fast** (billboard-per-beat) | Single `index.html`, stacked `<div class="beat">` elements, GSAP opacity sequencing. NO sub-compositions, NO HyperShader. Hard cuts via `tl.set()`. See stacked-beats pattern below. | Sub-compositions add latency; hard cuts need instant swaps. One file = zero load delay. |
-| **Moderate / Slow / Arc**     | Sub-compositions with `HyperShader.init()`. Each beat in `compositions/beat-N.html`. CSS crossfades or shader transitions between scenes.                                            | Transitions need HyperShader's compositing. Sub-agents build each beat independently.   |
+| **Moderate / Slow / Arc**     | Sub-compositions; optionally use supported `HyperShader.init()` when selected. Each beat in `compositions/beat-N.html`. CSS crossfades or shader transitions between scenes.                                            | Use the selected runtime's transition contract. Sub-agents build each beat independently.   |
 
 If the storyboard says "fast" pacing: use the stacked-beats pattern below. Do not use HyperShader — it adds scene registration overhead that creates gaps between hard cuts. Every frame is content, no transition frames.
 
 **Stacked-beats pattern (fast pacing):**
 
-Each beat composes from whatever primitives the storyboard called for — HTML/CSS, SVG, captured assets, WebGL, Canvas, Three.js, kinetic typography, Lottie — alone or in combination. Narrow no-go: never a full-bleed product-UI screenshot as load-bearing content. Each beat's structure comes from the storyboard's Composition + Accents spec.
+Each beat composes from whatever primitives the storyboard called for — HTML/CSS, SVG, captured assets, WebGL, Canvas, Three.js, kinetic typography, Lottie — alone or in combination. Captured UI screenshots are valid when the approved brief calls for a faithful site showcase. Each beat's structure comes from the storyboard's Composition + Accents spec.
 
 ```html
 <div
@@ -144,7 +142,7 @@ Each beat composes from whatever primitives the storyboard called for — HTML/C
 </div>
 ```
 
-If you ever find yourself writing `<img src="capture/assets/...">` as a beat's primary visual where the asset is a product-UI screenshot, stop. That's the slideshow pattern this skill exists to break. Build the element from divs and CSS using the brand colors from DESIGN.md. The legitimate `<img>` uses are: (a) the brand logo when it's purely raster, (b) a hero illustration layered as ambient depth behind composed content, (c) a gradient/texture image as a background wash. Never a product UI screenshot as the load-bearing visual.
+Use captured screenshots when the approved storyboard needs real product UI. Preserve source fidelity and inspect text legibility; compose HTML overlays only where they improve the intended communication.
 
 ```css
 .beat {
@@ -175,20 +173,20 @@ beats.forEach(function (b) {
 });
 ```
 
-Each beat gets its own visual world — different background, different color, different energy. No two consecutive beats should look alike. Scale pulse (1.012→1.0) on every beat entry is subtle but felt.
+Preserve the approved visual system across beats. Vary background, energy or entry motion only where the storyboard calls for it.
 
-If the storyboard says "slow" or "cinematic": build each beat as a sub-composition. Use long crossfades (0.8–1.2s `duration` with no `shader` key = CSS crossfade). Inside each beat, use continuous subtle motion — nothing is static:
+If the storyboard says "slow" or "cinematic": build each beat as a sub-composition. Use long crossfades (0.8–1.2s `duration` with no `shader` key = CSS crossfade). Inside each beat, optional subtle motion can support the storyboard; static holds are valid:
 
 - Slow camera drift on the composed scene root: `tl.fromTo(scene, {scale:1.05, x:20}, {scale:1, x:-20, duration: BEAT, ease:"none"})` (Ken-Burns style, but on your composed elements — not on a screenshot)
 - Parallax text layers: `tl.fromTo(text, {y:30}, {y:-30, duration: BEAT, ease:"power1.inOut"})`
 - 1–2s breathing room before text enters (don't animate everything at t=0)
 - Soft easing: `expo.out` for entrances, `power1.inOut` for drifts
 
-**Multi-scene index.html with HyperShader — for moderate/slow/arc pacing**
+**Optional multi-scene index.html example when HyperShader is selected**
 
-For videos with sub-composition beats and scene transitions, `index.html` MUST use `HyperShader.init()`. This is the entire scene orchestration layer. Do NOT try to use registry block sub-compositions (e.g. `compositions/domain-warp-dissolve.html`) for transitions — those are standalone showcase demos, not how HyperShader works in multi-scene compositions.
+When the storyboard selects a verified HyperShader runtime, use its supported scene orchestration API. Other selected runtimes may implement transitions differently. Within this HyperShader example, registry block sub-compositions such as `compositions/domain-warp-dissolve.html` are showcase demos, not substitutes for the scene orchestration API.
 
-Copy the local shader build first:
+Only when HyperShader is selected and its installed build is verified, copy that build from its actual package location. The following upstream-monorepo path is illustrative and is not assumed to exist in OpenMontage:
 
 ```bash
 cp packages/shader-transitions/dist/index.global.js <project-dir>/hyper-shader-local.js
@@ -213,7 +211,7 @@ Full working `index.html` pattern — every field matters:
     data-duration="4.5"   <!-- must match the GSAP BEAT constant in the composition -->
     data-track-index="1"
     data-width="1920" data-height="1080"
-    style="background: #YOUR_BEAT_BG_COLOR;"><!-- background here OR in sub-comp CSS — both work -->
+    ><!-- Place a full-bleed background child inside the composition template. -->
   </div>
 
   <div id="beat-2" class="scene"
@@ -223,7 +221,7 @@ Full working `index.html` pattern — every field matters:
     data-duration="5.5"
     data-track-index="2"  <!-- use sequential track indices (1,2,3...) to avoid linter errors -->
     data-width="1920" data-height="1080"
-    style="background: #YOUR_BEAT_BG_COLOR;">
+    >
   </div>
 
   <!-- ... more beats ... -->
@@ -261,7 +259,7 @@ Full working `index.html` pattern — every field matters:
 
 **Track index and the linter:** Use sequential track indices (`data-track-index="1"`, `"2"`, `"3"`...) for each beat — NOT all on track `"1"`. The linter flags overlapping clips on the same track as an error, and HyperShader compositions always have overlapping beats (the transition window). Using sequential indices silences the linter; HyperShader manages which scene is VISIBLE via opacity regardless of track index.
 
-**Scene background colors:** setting `style="background: #3139FB"` on the host `<div id="beat-1">` in index.html is the simplest pattern — it's visible at a glance from the root file. Setting background inside the sub-composition's CSS also works. Either is fine; host div is preferred for clarity.
+**Scene background colors:** use a full-bleed child inside the composition template, following `hyperframes-core/references/composition-patterns.md`. Do not rely on a host/root background that the renderer may drop.
 
 **Critical: beat host divs must have sequential `data-start` and matching `data-duration`.** Do NOT set `data-start="0"` on all beats — the render engine seeks each beat's GSAP timeline to `global_time - data_start`. At t=10s with `data-start=0`, a 5.5s timeline is seeked past its end and all content disappears.
 
@@ -287,13 +285,9 @@ The Studio preview server rewrites base URLs to the project root — `../` paths
 
 **Before dispatching, re-read DESIGN.md and STORYBOARD.md.** You wrote these files earlier in the session and you think you remember them. You don't — not the exact hex values, not the specific font families, not the button border-radius, not the Do's/Don'ts. Re-read them now so you can paste accurate brand rules and beat specs into each sub-agent prompt.
 
-**If your runtime supports parallel sub-agents** (Claude Code, Cursor, most agent frameworks): dispatch one sub-agent per beat — 3 to 4× faster than building sequentially. For 3+ beats, always dispatch in parallel. For 1–2 beats, sequential is fine.
+Build directly, or use bounded independent workers when useful and permitted under `../../hyperframes-core/references/subagent-dispatch.md`. Beat count does not mandate delegation. Reuse the context packet for either path.
 
-**If your runtime does not support parallel sub-agents** (some Codex setups, serial-only models): build sequentially using the same context-packing template below. The template gives each build pass the same context a sub-agent would get — paste prev/this/next beat + brand values — so output quality is the same, just slower.
-
-In either case, use the template. Do not skip it and build from memory.
-
-Each sub-agent reads [beat-builder-guide.md](beat-builder-guide.md) — it has everything: rules, easing, file references, validation commands. **Do not try to paste all rules into the prompt yourself.** Instead, tell the sub-agent to read the guide file. You paste only the beat-specific context: the storyboard sections, brand values, and asset paths.
+Each worker reads [beat-builder-guide.md](beat-builder-guide.md) — it has everything: rules, easing, file references, validation commands. **Do not try to paste all rules into the prompt yourself.** Instead, tell the sub-agent to read the guide file. You paste only the beat-specific context: the storyboard sections, brand values, and asset paths.
 
 ```
 Build the composition for Beat N. Save to compositions/beat-N-name.html.
@@ -303,7 +297,7 @@ the skill lives outside it — run this to find it:
 
   find "$HOME" -path '*/website-to-video/references/beat-builder-guide.md' -maxdepth 10 2>/dev/null | head -1
 
-Read that file end to end. It has your full workflow, all rules, easing vocabulary,
+Read its relevant build and validation sections for your assigned beat; it has easing vocabulary,
 and file references. Follow its workflow exactly:
   build → lint (`npx hyperframes lint .`)
         → snapshot (`npx hyperframes snapshot . --frames 3`)
@@ -313,7 +307,7 @@ and file references. Follow its workflow exactly:
 After you finish, the main agent will READ your composition HTML top-to-bottom
 and cross-check it against DESIGN.md and STORYBOARD.md — does the brand bg/accent
 hex actually appear in your CSS, are the captured assets the storyboard called
-for actually referenced, is the headline ≥80px, does the GSAP timeline cover
+for actually referenced, is the headline readable at the target output size, does the GSAP timeline cover
 the full beat duration. Do the work honestly. Reports of "looks good" without
 the work being done will be caught when the main agent opens the file.
 
@@ -373,8 +367,8 @@ For each beat:
 - **No `Math.random()`** — use a seeded PRNG
 - **No bare `gsap.to()`** — all tweens on `tl`, never standalone
 - **No full-screen dark linear gradients** — H.264 banding
-- **Minimum fonts**: 80px+ headlines, 20px+ body
-- **WCAG contrast on gradient backgrounds:** The contrast validator samples actual background pixels under the text element — if the background is a gradient image, darker parts of the image make the measured ratio _worse_ when you darken the text color, not better. Fix: either place text over a solid-color zone, or add `data-layout-ignore` attribute to decorative labels that don't need WCAG compliance. Don't blindly darken text color when the background isn't solid.
+- **Typography**: honor the design spec and verify readability at the target dimensions; no universal 80px floor.
+- **WCAG contrast on gradient backgrounds:** The contrast validator samples actual background pixels under the text element — if the background is a gradient image, darker parts of the image make the measured ratio _worse_ when you darken the text color, not better. Fix: either place text over a solid-color zone, or reposition/simplify genuinely decorative material; do not exempt readable labels to hide contrast failures. Don't blindly darken text color when the background isn't solid.
 
 ## 4. After all compositions are built — reconciliation check
 
@@ -398,14 +392,14 @@ Example: Beat 6's sub-agent took a snapshot at t=25.7s and saw Beat 1's content 
 **Required after all sub-agents complete:**
 
 ```bash
-node /<repo-root>/packages/cli/dist/cli.js snapshot <project-dir> --frames <N>
+npx hyperframes snapshot <project-dir> --at <representative-times>
 ```
 
-where N follows the snapshot formula: `max(beats × 3, ceil(duration_seconds / 2))`. This is the canonical snapshot that Step 6's DoD uses — not any individual sub-agent's intermediate snapshots.
+Select times covering each beat, transitions, dense content and endpoints; expand when anomalies appear. Review these assembled frames under Step 6 rather than relying on isolated worker captures.
 
 Sub-agents' snapshots are still useful as per-beat sanity checks, but they are not the deliverable. The post-completion snapshot is. Don't skip it because "the sub-agents already snapshotted."
 
-## 5. Read each beat HTML top-to-bottom — REQUIRED gate before Step 6
+## 5. Review each beat against its contract
 
 **This gate is non-skippable.** "I read it and it looks fine", "the sub-agent confirmed", "the snapshots look right" are NOT acceptable. Snapshots are 3 frames out of 300+ in motion — they hide everything that goes wrong between them.
 
@@ -413,14 +407,14 @@ Sub-agents' snapshots are still useful as per-beat sanity checks, but they are n
 
 For each `compositions/beat-N.html`:
 
-1. **Open the file and read it top-to-bottom.** Not a glance. Not a grep. Read the `<style>` block, then the markup, then the `<script>` block.
-2. **Fill in this evidence block — every line, with quoted values from the file:**
+1. **Inspect relevant source and rendered states.** Review changed layout, markup, timing and integration against DESIGN.md and STORYBOARD.md; reuse unchanged evidence.
+2. **Record relevant evidence.** This block is an optional template; omit inapplicable rows and use actual measured/observed values:
 
 ```
 Beat N: compositions/beat-N-NAME.html
   BG color in CSS:        <hex from line Y>      ← quote the exact line
   Accent color in CSS:    <hex from line Z>      ← quote the exact line
-  Headline font-size:     <px from line>         (≥80? yes/no)
+  Headline font-size:     <px from line>         (readable at target size? yes/no)
   Headline font-family:   <stack from line>      (matches DESIGN.md? yes/no)
   @font-face src paths:   <list>                 (each path exists? yes/no)
   Captured assets used:   <full list of paths from <img src=>, inline SVG ids, background-image url()>
@@ -438,11 +432,11 @@ Beat N: compositions/beat-N-NAME.html
   VERDICT: PASS / FIX (specify exactly what)
 ```
 
-If you cannot fill any line (e.g., "I see no SFX trigger" or "headline font-family not specified"), that IS a finding — fix or escalate, don't paper over.
+A missing required asset, SFX cue or font is a finding; investigate and fix it. Inapplicable template rows do not create new requirements.
 
 3. **Open each frame in `snapshots/beat-N/`** and confirm visually that entrance/hold/exit match the storyboard.
 
-**Anything off — fix it inline (small CSS/GSAP correction) or re-dispatch the sub-agent with the specific problem quoted.** Do not move to Step 6 until every beat has its evidence block filled and PASS.
+**Anything off — fix it inline (small CSS/GSAP correction) or re-dispatch the sub-agent with the specific problem quoted.** Do not move to Step 6 until relevant beat checks pass and unsupported playback/listening checks are explicitly NOT TESTED.
 
 ### SFX timestamp computation — compute, don't eyeball
 

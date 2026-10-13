@@ -47,23 +47,23 @@ If everything shows `[x]`, skip to "Quick Test" below. Otherwise continue setup.
 
 ```bash
 cd ~/.openclaw/workspace/claude-code-video-toolkit
-pip3 install --break-system-packages -r tools/requirements.txt
+python -m pip install -r tools/requirements.txt
 ```
 
-Note: `--break-system-packages` is needed on Debian/Ubuntu with managed Python (PEP 668). Safe inside containers.
+Run package installation only in a task-approved isolated virtual environment, after inspecting requirements. Do not override system package protections.
 
 ### Step 3: Configure Cloud GPU Endpoints
 
 The toolkit needs cloud GPU endpoint URLs in `.env`. Check if `.env` exists and has Modal endpoints:
 
 ```bash
-cat ~/.openclaw/workspace/claude-code-video-toolkit/.env | grep MODAL
+# Check configured variable names/presence with the toolkit loader; never print .env values.
 ```
 
 If Modal endpoints are configured, you're ready. If not, **ask the user to provide Modal endpoint URLs** or set up Modal:
 
 ```bash
-pip3 install --break-system-packages modal
+python -m pip install modal
 python3 -m modal setup   # Opens browser for authentication
 
 # Deploy each tool — capture the endpoint URL from output
@@ -121,7 +121,7 @@ If you get a valid .mp3 file, setup is complete. If it fails, check:
 - `.env` has the correct `MODAL_QWEN3_TTS_ENDPOINT_URL`
 - Run `python3 tools/verify_setup.py --json` and check `modal_tools` for which endpoints are missing
 
-**Cost:** Modal includes $30/month free compute. A typical 60s video costs $1-3.
+**Cost:** Verify current Modal account entitlement and pricing before use. A typical 60s video costs $1-3.
 
 ---
 
@@ -436,13 +436,13 @@ import { lightLeak } from '../../../lib/transitions/presentations/light-leak';
 
 | Problem | Solution |
 |---------|----------|
-| Tool command fails with "No module named..." | Run `pip3 install --break-system-packages -r tools/requirements.txt` from toolkit root |
+| Tool command fails with "No module named..." | Run `python -m pip install -r tools/requirements.txt` from toolkit root |
 | "MODAL_*_ENDPOINT_URL not configured" | Check `.env` has the endpoint URL. Run `python3 tools/verify_setup.py` |
 | SadTalker output is square/cropped | You forgot `--preprocess full`. Re-run with that flag |
 | Audio too short/long for scene | Re-run Step 5 (sync timing) and update config |
 | `npm run render` fails | Make sure you're in the project dir, not toolkit root. Run `npm install` first |
 | "Cannot find module" in Remotion | Check import paths. Custom components use `../../../lib/` relative paths |
-| Cold start timeout on Modal | First call after idle takes 30-120s. Retry once — second call uses warm GPU |
+| Cold start timeout on Modal | Reconcile any accepted job ID/status first; a client timeout does not prove the job failed. Resume the same job or report unknown acceptance; resubmit only after reconciliation and within approved spend |
 
 ---
 
@@ -460,4 +460,4 @@ import { lightLeak } from '../../../lib/transitions/presentations/light-leak';
 
 **Total for a 60s video:** ~$1-3 depending on scenes and narrator clips.
 
-Modal Starter plan: $30/month free compute. Apps scale to zero when idle.
+Verify current Modal account entitlement and pricing before use. Apps scale to zero when idle.

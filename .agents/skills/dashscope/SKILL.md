@@ -91,8 +91,8 @@ result = DashscopeAsr().execute({
 ## Recommended Workflow
 
 1. **Image:** Generate a sample first. Check `prompt_extend: true` (default) — DashScope rewrites your prompt for better results. Disable if you need literal prompt adherence.
-2. **TTS:** Generate a 10-15 second sample before full narration. Approve voice and pacing before committing to full generation.
-3. **ASR:** Audio must be at a **publicly accessible URL**. Upload to any public host (S3, etc.) first. Local paths are rejected with a clear error.
+2. **TTS:** Reuse exact-scope voice/pacing approval or generate an authorized short sample for an outstanding production gate.
+3. **ASR:** Audio must be at a **provider-readable URL** from an authorized storage route. Prefer a short-lived signed URL with only the required object access; do not publicly expose private media. Confirm upload authority, expiration and cleanup. Local paths are rejected with a clear error.
 4. **Subtitles:** Build from `result.data["words"]` — each word has `begin_time_seconds` and `end_time_seconds`. Group words into caption phrases by language semantics, not fixed character count.
 
 ## Parameters
@@ -115,7 +115,7 @@ result = DashscopeAsr().execute({
 - `instructions`: natural language delivery instructions (only for `qwen3-tts-instruct-flash`)
 
 ### ASR (`dashscope_asr`)
-- `audio_url` (required): **must be publicly accessible URL**
+- `audio_url` (required): **must be provider-readable (an authorized expiring signed URL is preferred)**
 - `model`: `qwen3-asr-flash-filetrans` (only model that supports word timestamps)
 - `language_hints`: default `["zh", "en"]`
 - `enable_words`: default `true` — required for word-level timestamps
@@ -126,7 +126,7 @@ result = DashscopeAsr().execute({
 
 - **Image size error:** Use `"W*H"` with asterisk, not `"WxH"`. Example: `"2048*2048"`.
 - **TTS no audio URL:** Check `output.audio.url` — if empty, the model name or voice may be wrong.
-- **ASR "file not accessible":** `audio_url` must be publicly reachable. DashScope servers fetch the file; local paths and auth-gated URLs don't work.
+- **ASR "file not accessible":** `audio_url` must be reachable by the provider during processing. DashScope servers fetch the file; local paths and auth-gated URLs don't work.
 - **ASR poll timeout:** Increase `timeout_seconds` (default 300). Long audio files take longer to transcribe.
 - **ASR no word timestamps:** Ensure `enable_words: true` and model is `qwen3-asr-flash-filetrans` (not the sync `qwen3-asr-flash`).
 - **Auth error (401):** Verify `DASHSCOPE_API_KEY` is set. Use `Authorization: Bearer $KEY` header.

@@ -164,8 +164,7 @@ close-up, that is the one it uses. Without the smiling version the model invents
 **One asset per state.** Variations are split into separate assets rather than noted in
 the prompt: clean jacket, soaked, and bloodied. Splitting is cheaper than arguing.
 
-**The rule of 10.** Before accepting an asset, generate it ten times across different poses
-and lighting. It must stay recognizable all ten.
+**Continuity sampling.** Inspect representative required poses and lighting within the approved sample budget. Reuse existing evidence; generate additional variants only when a concrete continuity risk justifies their authorized cost.
 
 **Locations.** Do not generate a head-on still. Generate a video of the empty space with
 the camera moving slowly, then derive the other sides of the room from that footage. A
@@ -231,7 +230,7 @@ Iteration discipline that keeps that cost bounded:
 - **Lock the assets before generating anything.** The model has no memory: re-describe
   everything, every time.
 - **Change one thing per iteration**, or you will not know which change fixed it.
-- **At 10 to 15 failed iterations, simplify or split the scene, not the wording.**
+- **After a meaningful failed iteration, diagnose whether simplifying or splitting the scene would resolve it.** Do not exhaust a fixed retry quota; respect the approved retry budget.
 - Explore at the lowest resolution the route offers and only re-run what works.
 - Keep a log of version, what changed, and verdict.
 - **Judge the whole clip, never a single frame.** A good still can come from a generation

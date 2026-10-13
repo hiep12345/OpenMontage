@@ -1,6 +1,6 @@
 ---
 name: create-video
-description: Generate a prompt-based video with HeyGen Video Agent when that provider is explicitly selected by the user or approved project workflow.
+description: Use when HeyGen prompt-based Video Agent generation is explicitly requested or selected by the approved OpenMontage workflow. Follow the selected adapter contract and existing provider, voice, source and spend approvals; generic media requests use the project router.
 homepage: https://docs.heygen.com/reference/generate-video-agent
 allowed-tools: mcp__heygen__*
 metadata:

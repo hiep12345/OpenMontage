@@ -1,6 +1,6 @@
 ---
 name: azure-speech-to-text
-description: Transcribe audio to text using Azure AI Speech (Fast Transcription REST API). Use when converting audio/video to text, generating subtitles, or processing spoken content in OpenMontage. Optional cloud STT provider — preferred when AZURE_SPEECH_KEY is configured; the local faster-whisper `transcriber` is the default offline path.
+description: Use when Azure Speech transcription is explicitly requested or selected by the approved OpenMontage workflow. Follow the selected adapter contract and existing provider, voice, source and spend approvals; generic media requests use the project router.
 license: MIT
 compatibility: Requires internet access and an Azure AI Speech resource (AZURE_SPEECH_KEY + AZURE_SPEECH_REGION).
 metadata: {"openclaw": {"requires": {"env": ["AZURE_SPEECH_KEY", "AZURE_SPEECH_REGION"]}, "primaryEnv": "AZURE_SPEECH_KEY"}}
@@ -11,10 +11,9 @@ metadata: {"openclaw": {"requires": {"env": ["AZURE_SPEECH_KEY", "AZURE_SPEECH_R
 Transcribe audio to text with **Azure Fast Transcription** — synchronous,
 word-level timestamps, speaker diarization, and multi-language identification.
 In OpenMontage this is exposed through the `azure_stt` tool (`capability=analysis`,
-`provider=azure`). It is an **optional cloud STT provider** — when
-`AZURE_SPEECH_KEY` is configured, prefer it for cloud transcription. The local
-`transcriber` tool (faster-whisper) remains the **default offline path** and the
-fallback when Azure is unavailable.
+`provider=azure`). Use `azure_stt` only for selected and authorized Azure work. Credential presence
+does not establish entitlement. Preserve offline or exact-provider choices;
+Piper, faster-whisper, ElevenLabs and other routes require their own authority.
 
 > Docs: [Fast Transcription](https://learn.microsoft.com/azure/ai-services/speech-service/fast-transcription-create) · [Speech service overview](https://learn.microsoft.com/azure/ai-services/speech-service/spx-overview)
 
@@ -48,7 +47,7 @@ export AZURE_SPEECH_REGION=eastus          # your resource's region
 
 ## Using it in a pipeline
 
-Prefer `azure_stt` over `transcriber` unless the run must be offline. Its output
+Use `azure_stt` when Azure is selected and authorized. Preserve an offline or exact-provider choice. Its output
 matches the `transcriber` schema exactly, so it is a drop-in for `subtitle_gen`
 and any stage that consumes a transcript.
 
