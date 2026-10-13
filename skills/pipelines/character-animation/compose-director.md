@@ -6,8 +6,15 @@ Render the approved character animation and prove it was reviewed.
 
 ## Runtime Routing
 
+Follow `AGENT_GUIDE.md` → "Composition Runtime Selection". Preserve an exact
+authorized `render_runtime` and route only through a viable supported path.
+An unavailable or incompatible authorized runtime is a concrete blocker; no
+silent substitution. Preserve manifest/proposal/asset gates, authorized spend,
+material-change approval and separate publication approval.
+
 First read `edit_decisions.render_runtime`. It must match the runtime locked in
-proposal unless a `render_runtime_selection` decision explicitly changed it.
+proposal unless applicable authorization and an appended `render_runtime_selection`
+decision explicitly changed it.
 
 - `remotion`: stage assets into `remotion-composer/public`, build composition
   JSON, render via `video_compose`.
@@ -18,10 +25,16 @@ proposal unless a `render_runtime_selection` decision explicitly changed it.
 
 ## Review Workflow
 
-1. Run `character_rig_renderer` to produce or refresh the HyperFrames package.
+1. For the approved HyperFrames path, run `character_rig_renderer` to produce or
+   refresh the HyperFrames package.
    The browser preview is a QA/debug artifact only, not the render path.
-2. Verify the renderer emitted a HyperFrames `workspace_path`, composition HTML,
-   `asset_manifest`, and `edit_decisions.render_runtime: "hyperframes"` handoff.
+2. On that path, verify the renderer emitted a HyperFrames `workspace_path`,
+   composition HTML, `asset_manifest`, and `edit_decisions.render_runtime: "hyperframes"`
+   handoff. If this handoff conflicts with the authorized runtime, stop as a
+   concrete blocker; do not let the renderer overwrite runtime authority. This
+   HyperFrames renderer does not establish Remotion parity. Use an approved
+   Remotion package only when its actual contract and QA demonstrate that path;
+   otherwise surface the unsupported handoff as a blocker.
 3. Run `character_animation_reviewer` against rig, poses, timeline, and preview.
 4. Render final video through `video_compose` using the renderer handoff or the
    approved Remotion/HyperFrames package. The deliverable path is

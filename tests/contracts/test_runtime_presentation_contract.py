@@ -1,9 +1,8 @@
-"""Enforce the 'present both composition runtimes' governance contract.
+"""Enforce runtime authority and unresolved-choice guidance across consumers.
 
 For every pipeline in `pipeline_defs/`, the planning-stage skill (proposal
-or idea) MUST instruct the agent about runtime selection — either by
-presenting both runtimes to the user when they are a real choice, or by
-surfacing the constraint when the pipeline is locked to one runtime.
+or idea) MUST preserve exact authorized runtime choices, compare viable
+alternatives when the choice is unresolved, and surface actual constraints.
 
 This test prevents a new pipeline from being added without the conversation
 contract. A fresh-session agent that reads a pipeline's planning skill and
@@ -12,7 +11,7 @@ exact failure mode this contract prevents.
 
 See:
 - AGENT_GUIDE.md → "Composition Runtime Selection"
-- skills/core/hyperframes.md → "Hard rule: present both runtimes"
+- skills/core/hyperframes.md → "Runtime authority and unresolved choices"
 - skills/meta/reviewer.md → finding #6
 """
 
@@ -37,13 +36,23 @@ _REQUIRED_RUNTIME_TOKENS = [
     "render_runtime",      # the field name must appear
     "hyperframes",         # the alternative runtime must be named
 ]
-# And at least one of these phrases showing the conversation-not-default contract.
+# Accept authority preservation as well as unresolved-choice conversation guidance.
 _CONVERSATION_TOKENS = [
     "present both",
     "Present Both",
     "PRESENT BOTH",
     "render_runtime_selection",  # pointing at the decision_log category
+    "exact authorized",
+    "choice is unresolved",
 ]
+
+
+def _covers_runtime_contract(body: str) -> bool:
+    """Tripwire for new planning consumers, without requiring a menu ritual."""
+    normalized = " ".join(body.lower().split())
+    return all(token in normalized for token in _REQUIRED_RUNTIME_TOKENS) and any(
+        token.lower() in normalized for token in _CONVERSATION_TOKENS
+    )
 
 
 def _planning_stages(manifest: dict[str, Any]) -> list[dict[str, Any]]:
@@ -103,9 +112,8 @@ def test_planning_skill_mentions_runtime_contract(manifest_path: Path):
         if not skill_ref:
             continue
         _, body = _load_skill(skill_ref)
-        covers_required = all(token in body for token in _REQUIRED_RUNTIME_TOKENS)
-        covers_conversation = any(token in body for token in _CONVERSATION_TOKENS)
-        if covers_required and covers_conversation:
+        covers_conversation = _covers_runtime_contract(body)
+        if covers_conversation:
             matched_skill = skill_ref
             matched_why = {
                 "mentions_render_runtime": "render_runtime" in body,
@@ -117,8 +125,8 @@ def test_planning_skill_mentions_runtime_contract(manifest_path: Path):
     assert matched_skill, (
         f"Pipeline {manifest_path.stem}: no planning-stage skill covers the "
         f"runtime-selection contract. Each pipeline's proposal- or idea-director "
-        f"must discuss render_runtime, name hyperframes, and either 'Present both' "
-        f"or a `render_runtime_selection` decision. A fresh-session agent reading "
+        f"must discuss render_runtime, name hyperframes, and cover exact authority, "
+        f"unresolved alternatives or a `render_runtime_selection` decision. A fresh-session agent reading "
         f"this pipeline's plan would silently default to Remotion. Fix the skill "
         f"that drives the planning stage."
     )
@@ -179,19 +187,98 @@ def test_agent_guide_preserves_authorized_runtime_and_resolves_real_choices():
     assert "Material changes require the applicable new authorization" in runtime
 
 
-def test_reviewer_has_critical_finding_for_single_option_runtime():
-    """The reviewer meta-skill must treat a single-option render_runtime_selection
-    as CRITICAL — otherwise the governance rule has no enforcement at review
-    time and a bypass slips through unnoticed."""
+def test_reviewer_distinguishes_exact_authority_from_silent_default_and_swap():
+    """Review guards genuine defaults/swaps without reopening authorized choices."""
     body = (SKILLS_DIR / "meta" / "reviewer.md").read_text(encoding="utf-8")
-    # Locate the critical-severity rule explicitly.
-    assert "render_runtime_selection" in body
-    # The section must carry CRITICAL severity language tied to single-option.
-    assert re.search(
-        r"render_runtime_selection.{0,800}(CRITICAL|critical)",
-        body,
-        re.DOTALL,
-    ), (
-        "Reviewer skill doesn't flag single-option render_runtime_selection "
-        "as CRITICAL — the conversation contract has no teeth."
-    )
+    selection = body.split("6. **Runtime authority and unresolved choices**", 1)[1].split(
+        "\n## Delivery Promise Review", 1
+    )[0]
+    assert "a single recorded option is valid" in selection
+    assert "including a new actionable brief with exact choices" in selection
+    assert "Do not reopen an authorized choice" in selection
+    assert "When runtime choice is unresolved" in selection
+    assert "both viable for the brief" in selection
+    assert "Silently defaulting in this case → **CRITICAL**" in selection
+    assert "concrete blocker; silent substitution → **CRITICAL**" in selection
+    assert "log entry alone does not approve a material change" in selection
+    assert "manifest's proposal/asset approval gates" in selection
+    assert "authorized spend, material-change approval and separate publication approval" in selection
+
+
+@pytest.mark.parametrize(
+    "body,expected",
+    [
+        ("Production planning with no runtime guidance", False),
+        ("render_runtime only", False),
+        ("render_runtime hyperframes", False),
+        ("Preserve an exact authorized render_runtime, including hyperframes", True),
+        ("render_runtime: remotion or hyperframes when choice is unresolved", True),
+        ("render_runtime hyperframes: record render_runtime_selection", True),
+    ],
+)
+def test_planning_tripwire_rejects_missing_guidance_and_accepts_authority(body, expected):
+    assert _covers_runtime_contract(body) is expected
+
+
+def _runtime_consumers() -> list[Path]:
+    consumers = [
+        SKILLS_DIR / "core/hyperframes.md",
+        SKILLS_DIR / "meta/animation-runtime-selector.md",
+        SKILLS_DIR / "meta/video-reference-analyst.md",
+    ]
+    for manifest_path in ALL_MANIFESTS:
+        if manifest_path.stem in _EXCLUDED_PIPELINES:
+            continue
+        manifest = _load_manifest(manifest_path)
+        for stage in _planning_stages(manifest):
+            path, body = _load_skill(stage["skill"])
+            if _covers_runtime_contract(body):
+                consumers.append(path)
+        for stage in manifest.get("stages", []):
+            if stage.get("name") == "compose":
+                consumers.append(_load_skill(stage["skill"])[0])
+    return sorted(set(consumers))
+
+
+@pytest.mark.parametrize("path", _runtime_consumers(), ids=lambda p: p.relative_to(ROOT).as_posix())
+def test_actual_runtime_consumers_preserve_authority_blockers_and_gates(path):
+    """Canonical producer and real manifest consumers must agree on authority."""
+    body = " ".join(path.read_text(encoding="utf-8").split())
+    assert '"Composition Runtime Selection"' in body
+    assert "exact authorized `render_runtime`" in body
+    assert "concrete blocker" in body
+    assert "publication approval" in body
+    assert "authorized spend" in body
+    assert "proposal/asset" in body
+    if path.name != "compose-director.md":
+        assert "including a new actionable brief with exact choices" in body
+        assert "choice is unresolved" in body
+        assert "both are viable" in body
+        assert "without a runtime menu or repeat approval" in body
+
+
+def test_runtime_consumers_do_not_reference_retired_always_both_rule():
+    paths = _runtime_consumers() + [
+        SKILLS_DIR / "meta/onboarding.md",
+        SKILLS_DIR / "meta/reviewer.md",
+        SKILLS_DIR / "pipelines/character-animation/executive-producer.md",
+    ]
+    for path in paths:
+        body = path.read_text(encoding="utf-8")
+        assert "Present Both Composition Runtimes" not in body, path
+        assert "when both were available is a CRITICAL" not in body, path
+
+
+def test_character_renderer_handoff_cannot_override_authorized_runtime():
+    body = (SKILLS_DIR / "pipelines/character-animation/compose-director.md").read_text(encoding="utf-8")
+    assert "For the approved HyperFrames path" in body
+    assert "do not let the renderer overwrite runtime authority" in body
+    assert "HyperFrames renderer does not establish Remotion parity" in body
+    proposal = (SKILLS_DIR / "pipelines/character-animation/proposal-director.md").read_text(encoding="utf-8")
+    assert "Do not batch-generate all assets until this sample is approved" in proposal
+
+
+def test_talking_head_degraded_caption_fallback_requires_authorization():
+    body = (SKILLS_DIR / "pipelines/talking-head/compose-director.md").read_text(encoding="utf-8")
+    assert "block the locked Remotion path before invoking `remotion_caption_burn`" in body
+    assert "After applicable material-change approval and a logged `render_runtime_selection` decision" in body

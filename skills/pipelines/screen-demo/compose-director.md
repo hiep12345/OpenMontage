@@ -6,6 +6,12 @@ Render the final screen-demo outputs. The quality bar is simple: the UI must be 
 
 ## Runtime Routing (MANDATORY first step)
 
+Follow `AGENT_GUIDE.md` → "Composition Runtime Selection". Preserve an exact
+authorized `render_runtime` and route only through a viable supported path.
+An unavailable or incompatible authorized runtime is a concrete blocker; no
+silent substitution. Preserve manifest/proposal/asset gates, authorized spend,
+material-change approval and separate publication approval.
+
 Read `edit_decisions.render_runtime` first. Screen-demo compositions use three distinct runtimes depending on the demo shape:
 
 - **`render_runtime="remotion"` with `TerminalScene`** — the preferred path for synthetic terminal/CLI/install flows. See `.agents/skills/synthetic-screen-recording/`.

@@ -30,29 +30,21 @@ engine (`render_runtime`). Both are locked at proposal and carried through
 `edit_decisions` unchanged. Silent runtime swaps at compose time are a
 contract violation.
 
-### HARD RULE — present both runtimes, don't silently default
+### Runtime authority and unresolved choices
 
-When both Remotion AND HyperFrames are available on the machine (check
-`video_compose.get_info()["render_engines"]`), the agent MUST present both
-options to the user before locking `render_runtime`. The decision matrix
-below is the agent's input for the conversation, NOT a license to silently
-pick the "default" entry. See `AGENT_GUIDE.md` → "Present Both Composition
-Runtimes" for the full contract.
+Follow `AGENT_GUIDE.md` → "Composition Runtime Selection" as the canonical
+contract. Preserve an exact authorized `render_runtime`, including a new actionable
+brief with exact choices, without a runtime menu or repeat approval. When runtime
+choice is unresolved, compare Remotion and HyperFrames only when both are viable
+for this brief; record actual alternatives and constraint evidence in a
+`render_runtime_selection` decision. An unavailable or incompatible authorized
+runtime is a concrete blocker; do not substitute it silently. Preserve the
+manifest's proposal/asset approval gates, authorized spend, material-change
+approval and separate publication approval.
 
-Concretely, at the proposal stage:
-
-1. Query `video_compose.get_info()["render_engines"]` to find which
-   runtimes are available on this machine.
-2. If both Remotion and HyperFrames are available, present both to the
-   user with: one-line description tailored to the brief, one-line
-   honest tradeoff, agent's recommendation with reason.
-3. Wait for explicit user approval.
-4. Log the decision in `decision_log` with category
-   `render_runtime_selection` and both runtimes in `options_considered`.
-5. Only then write `render_runtime` into `proposal_packet.production_plan`.
-
-A `render_runtime_selection` decision with only one option considered
-when both were available is a CRITICAL reviewer finding.
+Check the selected runtime through `video_compose.get_info()["render_engines"]`.
+Use the matrix below for unresolved choices and load Layer 3 references only for
+the selected runtime or a concrete feasibility question.
 
 | Brief characteristic | `render_runtime` | Read |
 |---|---|---|

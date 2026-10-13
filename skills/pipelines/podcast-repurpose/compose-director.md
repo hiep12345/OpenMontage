@@ -6,10 +6,16 @@ Render the podcast-derived outputs with audio fidelity as the top priority. The 
 
 ## Runtime Routing (HARD CONSTRAINT — Remotion or FFmpeg only)
 
+Follow `AGENT_GUIDE.md` → "Composition Runtime Selection". Preserve an exact
+authorized `render_runtime` and route only through a viable supported path.
+An unavailable or incompatible authorized runtime is a concrete blocker; no
+silent substitution. Preserve manifest/proposal/asset gates, authorized spend,
+material-change approval and separate publication approval.
+
 Phase 1 deferred from HyperFrames. `edit_decisions.render_runtime` must be `"remotion"` (audiograms, composed outputs) or `"ffmpeg"` (pure-audio-led clip exports). HyperFrames caption-burn parity is deferred, and podcast outputs lean on Remotion's word-level caption stack.
 
-- If `edit_decisions.render_runtime == "hyperframes"`, stop. Re-open the idea stage and surface the constraint to the user. Never silently rewrite the runtime.
-- Per AGENT_GUIDE.md → "Present Both Composition Runtimes (HARD RULE)": tell the user HyperFrames exists and why it isn't viable on this pipeline, rather than silently locking remotion. Record a `render_runtime_selection` decision with hyperframes `rejected_because: "caption-burn parity deferred on podcast-repurpose"`.
+- If `edit_decisions.render_runtime == "hyperframes"`, stop and surface the pipeline constraint as a concrete blocker. A supported replacement requires applicable authorization and an appended `render_runtime_selection` decision; never silently rewrite the runtime.
+- Explain a newly encountered pipeline constraint as a concrete blocker; reuse exact recorded authority for a supported runtime without a repeated menu.
 - Pass `proposal_packet`/`brief` to `video_compose.execute()` for end-to-end runtime-swap detection.
 
 ## Prerequisites

@@ -8,17 +8,17 @@ You are the **Proposal Director** for a cinematic video (trailers, brand films, 
 
 ## Runtime Selection (required field — `render_runtime`)
 
-Cinematic proposals must lock **both** a `renderer_family` (creative grammar: `cinematic-trailer`, `documentary-montage`, etc.) and a `render_runtime` (technical engine). Read `skills/meta/animation-runtime-selector.md` and `skills/core/hyperframes.md` for the decision matrix, and `AGENT_GUIDE.md` → "Present Both Composition Runtimes (HARD RULE)" for the governance contract.
+Cinematic proposals must lock **both** a `renderer_family` (creative grammar: `cinematic-trailer`, `documentary-montage`, etc.) and a `render_runtime` (technical engine). For unresolved choices or a concrete feasibility gap, read the relevant decision matrix in `skills/meta/animation-runtime-selector.md` or `skills/core/hyperframes.md`.
 
-**MANDATORY workflow — present both runtimes, don't silently default:**
-
-1. Query `video_compose.get_info()["render_engines"]`. If both `remotion` and `hyperframes` are `True`, proceed to step 2.
-2. Present both runtimes to the user with brief-specific analysis:
-   - **Remotion** — one line on fit (mention `CinematicRenderer`, `<OffthreadVideo>`, existing transition stack if applicable), one line on tradeoff.
-   - **HyperFrames** — one line on fit (mention kinetic title sequences, registry shader transitions, or HTML-native typographic motion if applicable), one line on tradeoff.
-3. Recommend one with rationale tied to the brief's `delivery_promise` (especially `motion_required`), `renderer_family`, and approved tone.
-4. Wait for explicit user approval. Do NOT write `render_runtime` into `proposal_packet.production_plan` before approval.
-5. Log a `render_runtime_selection` decision in `decision_log` with BOTH runtimes in `options_considered` plus `ffmpeg` if it was a realistic option.
+Follow `AGENT_GUIDE.md` → "Composition Runtime Selection" as the canonical
+contract. Preserve an exact authorized `render_runtime`, including a new actionable
+brief with exact choices, without a runtime menu or repeat approval. When runtime
+choice is unresolved, compare Remotion and HyperFrames only when both are viable
+for this brief; record actual alternatives and constraint evidence in a
+`render_runtime_selection` decision. An unavailable or incompatible authorized
+runtime is a concrete blocker; do not substitute it silently. Preserve the
+manifest's proposal/asset approval gates, authorized spend, material-change
+approval and separate publication approval.
 
 Fit cheat-sheet for the recommendation (NOT an auto-decision):
 
@@ -34,8 +34,6 @@ For an explicit 3D-world promise, query `3d_world_generation`. When
 if cloud video generation is unavailable: it authors a continuous editable
 scene graph with a deterministic camera. Record the tool, local $0 generation
 cost, HyperFrames runtime, and atelier mode in the proposal.
-
-A `render_runtime_selection` decision with only one option considered when both were available is a CRITICAL reviewer finding.
 
 ## Prerequisites
 

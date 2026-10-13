@@ -117,12 +117,17 @@ Assets are cached automatically on resolve. Subsequent resolves for the same pro
 | `ffprobe` | Probe duration, dimensions, codec on adopt | Yes           |
 | `heygen`  | Audio catalog, asset search                | For providers |
 
-Install the `heygen` CLI (single static binary, no runtime) and authenticate:
+Use the existing project-managed `heygen` executable and provisioned credentials
+first. Verify that its installed version supports the required provider flags.
+Do not update a working pinned installation merely because this skill was loaded.
+Installation or upgrade is a task-relevant environment change only when the tool
+is missing or its actual version lacks the required capability; use the authorized
+platform/toolchain and verify the result. Do not execute an unreviewed downloaded
+installer as a routine setup step.
 
-```bash
-curl -fsSL https://static.heygen.ai/cli/install.sh | bash   # installs latest to ~/.local/bin
-heygen update                                               # if already installed: needs >= v0.1.6
-export HEYGEN_API_KEY=<your-key>                            # or: heygen auth login --key <key>
-```
+Read credentials from the existing process environment or approved secret store.
+Do not print keys, paste them in chat, place them in command arguments or commit
+them. A missing credential or selected provider is a concrete blocker; it does
+not authorize automatic account setup, another provider or new paid generation.
 
 Requires **heygen >= v0.1.6** — the providers tag requests with the allowlisted `--headers 'X-HeyGen-Client-Source: media-use'` flag, added in v0.1.6. `asset search` is a pre-launch command hidden from `heygen --help`, but it runs. Without a `heygen` on PATH (or a valid key) the providers print a one-line diagnostic to stderr and resolve falls through to "no provider could resolve".

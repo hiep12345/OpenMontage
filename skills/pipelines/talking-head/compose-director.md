@@ -6,10 +6,16 @@ You have edit decisions and an asset manifest. Your job is to render the final t
 
 ## Runtime Routing (HARD CONSTRAINT — Remotion or FFmpeg only)
 
+Follow `AGENT_GUIDE.md` → "Composition Runtime Selection". Preserve an exact
+authorized `render_runtime` and route only through a viable supported path.
+An unavailable or incompatible authorized runtime is a concrete blocker; no
+silent substitution. Preserve manifest/proposal/asset gates, authorized spend,
+material-change approval and separate publication approval.
+
 Phase 1 deferred from HyperFrames. `edit_decisions.render_runtime` must be `"remotion"` (preferred — uses the `TalkingHead` composition + `remotion_caption_burn`) or `"ffmpeg"` (for source-footage concat with no composition).
 
-- If `edit_decisions.render_runtime == "hyperframes"`, stop. Re-open the idea stage and surface the constraint. Silent rewrite is a governance violation.
-- Per AGENT_GUIDE.md → "Present Both Composition Runtimes (HARD RULE)": the pipeline's constraint doesn't skip the conversation. Present the constraint to the user so they know HyperFrames exists but isn't viable here. Record a `render_runtime_selection` decision with hyperframes `rejected_because: "TalkingHead + caption parity deferred on talking-head"`.
+- If `edit_decisions.render_runtime == "hyperframes"`, stop and surface the pipeline constraint as a concrete blocker. A supported replacement requires applicable authorization and an appended `render_runtime_selection` decision; never silently rewrite the runtime.
+- Explain a newly encountered pipeline constraint as a concrete blocker; reuse exact recorded authority for a supported runtime without a repeated menu.
 - Pass `proposal_packet`/`brief` to `video_compose.execute()` for runtime-swap detection.
 
 ## Prerequisites
@@ -153,7 +159,7 @@ Pass this dict to both `subtitle_gen` (if generating SRT) and `remotion_caption_
 
 ### Step 3: Burn Subtitles
 
-**ALWAYS use Remotion TikTok-style captions** (word-by-word highlighting). This is the default and preferred method. Do NOT fall back to FFmpeg ASS subtitles unless Remotion is completely unavailable.
+**ALWAYS use Remotion TikTok-style captions** (word-by-word highlighting). This is the default and preferred method. If Remotion is unavailable, surface a blocker; use FFmpeg ASS subtitles only with applicable authorization for that degraded caption treatment.
 
 **Remotion caption requirements:**
 - **Auto-detect video dimensions** -- do NOT hardcode width/height. Use `visual_qa` probe or ffprobe to get actual dimensions, then pass them to the render.
@@ -173,7 +179,7 @@ remotion_caption_burn.execute({
 })
 ```
 
-**Fallback ONLY if Remotion is completely unavailable:** Use `video_compose` with `burn_subtitles` operation. This is a degraded experience -- warn the user that word-by-word highlighting won't be available.
+**Authorized fallback ONLY if Remotion is completely unavailable:** After applicable material-change approval and a logged `render_runtime_selection` decision, use `video_compose` with `burn_subtitles` operation. This is a degraded experience -- warn the user that word-by-word highlighting won't be available.
 
 **CRITICAL: Caption positioning for 9:16 vertical video (FFmpeg fallback only).**
 Captions MUST be in the lower 20% of the frame. On a 1920-high frame, that means `MarginV=160` or higher. The default FFmpeg subtitle position is center -- this WILL occlude the face. You MUST override it.
@@ -270,7 +276,7 @@ remotion_caption_burn.execute({
 
 **Important:** After speed adjustment, recalculate overlay timestamps: `adjusted_time = original_time / speed_factor`.
 
-**Fallback (no Remotion):** If Remotion is unavailable, `remotion_caption_burn` falls back to FFmpeg for captions only. Overlays are NOT rendered in FFmpeg fallback mode — warn the user that overlays require Remotion.
+**Fallback (no Remotion):** If Remotion is unavailable, block the locked Remotion path before invoking `remotion_caption_burn`, whose FFmpeg fallback produces captions only. Use that fallback only after applicable approval and a logged `render_runtime_selection` decision. Overlays are NOT rendered in FFmpeg fallback mode — warn the user that overlays require Remotion.
 
 ### Step 3c: Green Screen Composite (if green screen footage)
 

@@ -32,8 +32,10 @@ be built with the available rigs, assets, or runtime, surface a blocker.
 ## Governance Rules
 
 - Run registry preflight before proposal.
-- If both Remotion and HyperFrames are available, present both before locking
-  `render_runtime`.
+- Apply `AGENT_GUIDE.md` → "Composition Runtime Selection": preserve an exact
+  authorized `render_runtime`; compare Remotion and HyperFrames only when runtime
+  choice is unresolved and both are viable. Block an unavailable authorized runtime
+  without substitution; retain proposal/asset, spend, change and publication gates.
 - Produce a 10-15 second sample before full asset generation.
 - Character differences belong in rig data, not one-off code paths.
 - Every generated or runtime-authored asset must list Layer 3 skills read.

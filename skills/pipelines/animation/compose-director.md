@@ -6,7 +6,13 @@ Render the animation with an emphasis on text sharpness, timing integrity, and c
 
 ## Runtime Routing (MANDATORY first step)
 
-Before any other work, read `edit_decisions.render_runtime`. It was locked at proposal and MUST NOT be changed silently. The rest of this skill assumes `render_runtime="remotion"` (the default for this pipeline). If the proposal locked a different runtime:
+Follow `AGENT_GUIDE.md` → "Composition Runtime Selection". Preserve an exact
+authorized `render_runtime` and route only through a viable supported path.
+An unavailable or incompatible authorized runtime is a concrete blocker; no
+silent substitution. Preserve manifest/proposal/asset gates, authorized spend,
+material-change approval and separate publication approval.
+
+Before any other work, read `edit_decisions.render_runtime`. It was locked at proposal and MUST NOT be changed silently. The rest of this skill assumes `render_runtime="remotion"` (the path for the existing React scene stack). If the proposal locked a different runtime:
 
 - **`render_runtime="hyperframes"`** — HTML/CSS/GSAP render. Do NOT follow the Remotion-specific sections below (public/ staging, Remotion composition JSON). Instead:
   1. Read `skills/core/hyperframes.md` for the full routing model.

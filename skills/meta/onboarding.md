@@ -70,7 +70,10 @@ composition.
 **Do NOT pick a runtime during onboarding.** Runtime selection happens at
 the proposal stage, after the agent understands the brief. During
 onboarding you're reporting capabilities, not making production decisions.
-See `AGENT_GUIDE.md` → "Present Both Composition Runtimes (HARD RULE)".
+See `AGENT_GUIDE.md` → "Composition Runtime Selection". Onboarding reports
+capabilities for an open request; it does not reopen an exact authorized
+`render_runtime` in a new actionable brief or approved resume. Preserve the
+manifest's production gates and separate publication approval.
 
 ### Step 3: Greet and Orient
 

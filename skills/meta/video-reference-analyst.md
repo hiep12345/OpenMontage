@@ -131,13 +131,21 @@ Composition engine       Remotion: available        READY
                          FFmpeg: available          READY (standalone ops)
 ```
 
-**Composition engine selection:** Remotion and HyperFrames are parallel, non-ranked
-composition runtimes — do NOT pre-lock either one here. When both are available, the
-"Present Both Composition Runtimes (HARD RULE)" gate in `AGENT_GUIDE.md` governs the
-choice: present both options to the user with tradeoffs at the proposal stage and wait
-for explicit approval before locking `render_runtime`. Silently picking a default is
-forbidden. FFmpeg is not a composition runtime in this flow — it is reserved for
-standalone operations (trim, transcode, subtitle burn) outside the composition pipeline.
+**Composition engine selection:**
+
+Follow `AGENT_GUIDE.md` → "Composition Runtime Selection" as the canonical
+contract. Preserve an exact authorized `render_runtime`, including a new actionable
+brief with exact choices, without a runtime menu or repeat approval. When runtime
+choice is unresolved, compare Remotion and HyperFrames only when both are viable
+for this brief; record actual alternatives and constraint evidence in a
+`render_runtime_selection` decision. An unavailable or incompatible authorized
+runtime is a concrete blocker; do not substitute it silently. Preserve the
+manifest's proposal/asset approval gates, authorized spend, material-change
+approval and separate publication approval.
+
+FFmpeg is viable only for pipeline-supported simple assembly or standalone
+operations; it cannot replace a motion-led composition promise. Load runtime
+references only for the selected path or a concrete unresolved feasibility gap.
 
 Be honest about gaps. If video generation is needed but unavailable, say so clearly:
 
@@ -228,7 +236,7 @@ Use this structure for each variant:
 **Visual plan:**
 - Playbook: [closest match + customizations]
 - Visual treatment: [how visuals will be created — which tools, which providers]
-- Composition: [Remotion (default when available) / FFmpeg (fallback only)]
+- Composition: [authorized render_runtime, or unresolved viable options with brief-specific rationale]
 - Motion: [video gen clips / Remotion spring animations on stills / etc.]
 - Clip duration strategy: [maximize clip duration to minimize API calls and cost.
   Most providers support 5s and 10s clips. Prefer 10s clips and consolidate

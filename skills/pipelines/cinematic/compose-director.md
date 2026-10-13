@@ -6,6 +6,12 @@ Render the cinematic piece with careful attention to grade, audio dynamics, and 
 
 ## Runtime Routing (MANDATORY first step)
 
+Follow `AGENT_GUIDE.md` → "Composition Runtime Selection". Preserve an exact
+authorized `render_runtime` and route only through a viable supported path.
+An unavailable or incompatible authorized runtime is a concrete blocker; no
+silent substitution. Preserve manifest/proposal/asset gates, authorized spend,
+material-change approval and separate publication approval.
+
 Read `edit_decisions.render_runtime`. Cinematic work routes to:
 
 - **`render_runtime="remotion"`** — default for video-led trailers using `CinematicRenderer`. Keeps video clips, transitions, and ambient overlays in one React-based pass.
