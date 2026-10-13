@@ -1,7 +1,7 @@
 ---
 name: minimax-h3
 description: |
-  Generate MiniMax H3 (Hailuo 3.0) video through the official MiniMax v2 API, fal.ai, Runway, ComfyUI Partner Nodes, or local open weights in ComfyUI. Use for 4-15 second 2K clips, first/last-frame animation, and image/video/audio reference-conditioned video.
+  Generate MiniMax H3 (Hailuo 3.0) video through the official MiniMax v2 API, fal.ai, Runway, ComfyUI Partner Nodes, or local open weights in ComfyUI. Use when MiniMax H3 / Hailuo 3.0 is explicitly requested or selected for the authorized production; duration, resolution or reference inputs alone do not select this provider.
 ---
 
 # MiniMax H3

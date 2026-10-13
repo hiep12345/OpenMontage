@@ -15,7 +15,10 @@ Download video and audio from URLs using yt-dlp directly. No wrapper scripts nee
 - **yt-dlp**: `brew install yt-dlp` or `pip install yt-dlp`
 - **ffmpeg**: `brew install ffmpeg` or `apt install ffmpeg` (required for merging video+audio streams)
 
-Update yt-dlp periodically to keep up with site changes: `yt-dlp -U` or `pip install -U yt-dlp`.
+Use the existing project-managed executable first. Installation or updates are
+environment changes: diagnose a relevant missing tool or extractor defect before
+changing dependencies, follow the project toolchain, and preserve unrelated versions.
+The installer-specific update commands below are optional remedies after that check.
 
 ## Commands
 
@@ -99,14 +102,14 @@ Common variables for `-o` templates:
 ## Tips
 
 - Always use `--merge-output-format mp4` to avoid ending up with `.webm` or `.mkv` files.
-- Use `--no-download` with `--dump-json` for metadata-only queries -- no files written to disk.
-- If a download fails with HTTP errors, update yt-dlp first (`yt-dlp -U`).
+- Use `--no-download` with `--dump-json` for metadata-only queries; it skips media download but still makes network requests and may use local configuration/cache. Do not describe it as offline or universally free of side effects.
+- For HTTP failures, inspect the actual status and extractor message first. Authentication, permissions, rate limits, unavailable content and network failures are not evidence that the executable needs updating. Preserve authorized access and do not bypass restrictions.
 - Use `-f "bestvideo[height<=720]+bestaudio"` to save bandwidth when full resolution is not needed.
 - yt-dlp automatically handles rate limiting and retries.
 - The `--dump-json` output includes `title`, `duration`, `uploader`, `view_count`, `description`, `formats`, `subtitles`, and much more.
 
 ## Troubleshooting
 
-- **"yt-dlp: command not found"**: Install it (`pip install yt-dlp`) and ensure your PATH includes pip's bin directory.
-- **"ffmpeg: command not found"**: Install ffmpeg. Without it, downloads fail when video and audio are separate streams (common on YouTube for HD).
-- **Downloads fail or return errors**: Run `yt-dlp -U` to update. Sites change frequently and yt-dlp ships fixes regularly.
+- **"yt-dlp: command not found"**: Check the project-managed executable and PATH first. Install only through the relevant authorized toolchain if it is actually missing.
+- **"ffmpeg: command not found"**: Check the selected executable and PATH; install through the authorized toolchain only if required and absent. Separate video/audio streams require a working merger.
+- **Confirmed stale extractor**: Check the installed version and relevant upstream fix. Update only when that evidence and project authority support it: use `yt-dlp -U` for a supported standalone installation or the project's package manager for its pinned dependency. Rerun the affected lookup; a successful update is not proof of authorized content access.
