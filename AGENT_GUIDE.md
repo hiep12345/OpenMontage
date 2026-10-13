@@ -105,7 +105,7 @@ When the user asks to make, create, produce, or generate any video content — a
 
 1. **Identify the pipeline.** Match the request to one of the pipelines in `pipeline_defs/`. If unclear, ask the user.
 2. **Read the pipeline manifest.** `pipeline_defs/<pipeline>.yaml` — know the stages, tools, and quality gates.
-3. **Run preflight for a new production.** Discover available tools via the registry. Present the capability menu. For an existing approved run, use **Approved Production Resume** instead of restarting selection.
+3. **Run preflight for a new production.** Verify selected required tools via the registry; present a relevant capability shortlist only for an unresolved choice. For an existing approved run, use **Approved Production Resume** instead of restarting selection.
 4. **Execute stage by stage.** For EACH stage, read the stage director skill (`skills/pipelines/<pipeline>/<stage>-director.md`) BEFORE doing any work in that stage.
 5. **Read Layer 3 skills before calling tools.** Before using any tool with an `agent_skills` field, read the referenced skill in `.agents/skills/`. These contain provider-specific prompting guidance, parameter optimization, and quality techniques that dramatically improve output.
 
@@ -290,7 +290,7 @@ Infrastructure files:
 
 ## Project Directory Convention
 
-Every production run creates a project workspace under `projects/`. This directory is gitignored — all generated assets are regenerable.
+Every production run creates a project workspace under `projects/`. This directory is gitignored. Preserve accepted assets, checkpoints and receipts; paid or stochastic outputs are not assumed reproducible.
 
 ```
 projects/<project-name>/
@@ -318,7 +318,7 @@ All tools and agents must write outputs to these paths — **always pass an expl
 
 ## Music Library
 
-Users can place royalty-free music tracks in `music_library/` (gitignored). The asset director will check this folder before falling back to API-based music generation.
+Users can place royalty-free music tracks in `music_library/` (gitignored). When music choice is unresolved, the asset director may inspect this folder as one source. Its presence or absence does not authorize API generation or replacement of selected music.
 
 ```
 music_library/
@@ -327,7 +327,7 @@ music_library/
 └── ...
 ```
 
-If the folder has tracks, the proposal and asset stages should present them as options alongside generated music. See the proposal-director and asset-director skills for details.
+For an unresolved music choice, suitable local tracks may be offered alongside other authorized options. Reuse an already approved exact track or no-music choice. See the proposal-director and asset-director skills for details.
 
 ## Available Pipelines
 
@@ -350,49 +350,29 @@ If the folder has tracks, the proposal and asset stages should present them as o
 
 ## Mandatory Preflight
 
-Do this before creative work on a new production. Maintenance/read-only requests
-do not run production preflight. For an unchanged approved run, follow **Approved
-Production Resume** and check the selected path instead of repeating generic menus.
-**Use `provider_menu_summary()` first — it's the human-ready rollup.** The raw `support_envelope()` dump is a firehose (megabytes of JSON on a well-configured machine); pasting it into chat will bury the user.
+Before creative work on a new production, read the selected manifest, verify its
+required tools and the selected provider/runtime, and report relevant blockers or
+degraded behavior. Recover exact choices and approvals already supplied by the
+user; preflight does not restart their selection. Maintenance and inspection do
+not run production preflight. An unchanged approved run follows **Approved
+Production Resume**.
 
-```bash
-python -c "
-from tools.tool_registry import registry
-import json
-registry.discover()
-print(json.dumps(registry.provider_menu_summary(), indent=2))
-"
-```
+Use the selected tool's current registry contract and runtime information. A
+configured key or advertised capability is not proof of account access or a
+successful provider call. An available fallback does not authorize substitution.
+Keep actual manifest approvals and spend boundaries before generation.
 
-The summary returns four fields the agent should translate into plain language:
-
-- `composition_runtimes` — booleans for `ffmpeg`, `remotion`, `hyperframes`. This is the source of truth for the "Present Both Composition Runtimes (HARD RULE)" check.
-- `capabilities[]` — one entry per capability family with `configured / total` counts and provider lists. Ready-made for the "N of M configured" menu.
-- `setup_offers[]` — unavailable tools whose install is a 1-minute env-var fix. Lead with these when offering upgrades.
-- `runtime_warnings[]` — specific signals like "hyperframes: npm package not resolvable". Surface these to the user verbatim — they're the kind of silent-failure bugs that break the governance contract.
-
-Then, for deeper inspection (only when the summary isn't enough):
-
-```bash
-# Full menu — grouped available/unavailable per capability.
-python -c "from tools.tool_registry import registry; import json; registry.discover(); print(json.dumps(registry.provider_menu(), indent=2))"
-
-# Raw envelope — every tool's full contract. Slow/firehose; use for debugging only.
-python -c "from tools.tool_registry import registry; import json; registry.discover(); print(json.dumps(registry.support_envelope(), indent=2))"
-```
-
-Then:
-
-1. Read the selected manifest in `pipeline_defs/`.
-2. Check every `required_tools` entry against the registry.
-3. Check `fallback_tools` for unavailable tools.
-4. Report one of: `passed`, `degraded`, or `blocked`.
-5. Do not start production until the user understands the real capability envelope.
+For requested capability exploration or when a narrow lookup is insufficient,
+`registry.provider_menu_summary()` supplies a compact overview. Interpret only
+relevant capabilities and runtime warnings; setup offers are optional and do not
+prove a one-minute fix. Full `provider_menu()` / `support_envelope()` dumps are
+diagnostic references, not mandatory context for every production.
 
 ### Task-Relevant Capability Discovery
 
-Use `provider_menu_summary()` to inspect capabilities needed by the selected
-pipeline. Configuration is not proof of provider entitlement or successful calls.
+Inspect registry contracts for capabilities needed by the selected pipeline.
+Use `provider_menu_summary()` only when a narrow lookup is insufficient or the
+user asks for broader exploration. Configuration is not proof of provider entitlement or successful calls.
 Report relevant unavailable tools, degraded behavior and cost/budget uncertainty.
 Preserve exact provider/model choices already authorized in the request or records.
 
@@ -432,7 +412,7 @@ print('HyperFrames note:', info.get('hyperframes_note'))
 
 | Engine | Used For | Requires |
 |--------|----------|----------|
-| **FFmpeg** | Video-only cuts, concat, trim, subtitle burn | `ffmpeg` binary (always available) |
+| **FFmpeg** | Video-only cuts, concat, trim, subtitle burn | a verified `ffmpeg` binary |
 | **Remotion** | React-based composition: still images → animated video, text cards, stat cards, charts, callouts, comparisons, transitions with spring physics, word-level caption burn, TalkingHead avatar | Node.js (`npx`) + `remotion-composer/` + `node_modules` |
 | **HyperFrames** | HTML/CSS/GSAP composition: kinetic typography, product promos, launch reels, website-to-video, registry-block-driven scenes, SVG character rigs | Node.js ≥ 22 + FFmpeg + `npx` (consumed via `npx hyperframes`) |
 
@@ -457,7 +437,7 @@ For these requests:
 - Bubble critical issues immediately. If the chosen runtime is unavailable, fails to render, or provider clip generation fails in a way that blocks the approved treatment, stop and tell the user before proceeding.
 - Do not spend more tokens or time on downgraded output unless the user explicitly approves the downgrade as an animatic or proof-of-concept.
 
-**When Remotion is available**, the agent should design production plans around it:
+**When runtime choice is unresolved and Remotion is a suitable available option**, these are illustrative approaches:
 - Explainer videos with `flat-motion-graphics` playbook -> Remotion animated scenes, not Ken Burns
 - Data-driven videos -> Remotion stat cards and charts, not static image screenshots
 - Any pipeline using still images -> Remotion spring animations, not FFmpeg pan-and-zoom
@@ -474,7 +454,7 @@ These stock scene-types are the **templated** path — fast and reliable, but th
 
 When `render_runtime="hyperframes"` is locked and HyperFrames is unavailable (Node < 22, missing `ffmpeg`/`npx`, or `hyperframes doctor` reports issues), that's also a blocker. Do not substitute Remotion or FFmpeg without user approval + a logged `render_runtime_selection` decision.
 
-Routing is automatic — `video_compose` reads `edit_decisions.render_runtime` and dispatches to the matching engine (`_render_via_hyperframes`, `_remotion_render`, or `_render_via_ffmpeg`). But the **agent must know both Remotion and HyperFrames exist at proposal time** so it can design the visual approach intentionally. Don't default to Remotion for motion-graphics-heavy concepts that HTML/GSAP would express more naturally, and don't default to HyperFrames for briefs that reuse the existing React scene stack.
+Routing is automatic — `video_compose` reads `edit_decisions.render_runtime` and dispatches to the matching engine (`_render_via_hyperframes`, `_remotion_render`, or `_render_via_ffmpeg`). Inspect relevant runtime alternatives when the choice is unresolved, and preserve a runtime already selected and authorized. Don't default to Remotion for motion-graphics-heavy concepts that HTML/GSAP would express more naturally, and don't default to HyperFrames for briefs that reuse the existing React scene stack.
 
 ## Capability Discovery
 
@@ -483,7 +463,7 @@ OpenMontage uses two layers for capability choice:
 - selector tools: capability-level routing such as `tts_selector` and `video_selector`
 - provider tools: concrete tools discovered via the registry that call a specific backend
 
-Always inspect the registry first:
+Inspect the selected tool contract before use. The following full catalogs are optional for unresolved choices, exploration or diagnosis:
 
 ```bash
 python -c "from tools.tool_registry import registry; import json; registry.discover(); print(json.dumps(registry.capability_catalog(), indent=2))"
@@ -503,7 +483,7 @@ Do not rely on memory or old docs when the registry can answer it.
 
 ## Tool Families
 
-**Do not maintain hardcoded tool lists.** Always query the registry at runtime:
+**Do not treat remembered tool lists as current availability.** Inspect the selected contracts; broader catalog queries below are optional:
 
 ```bash
 # See all tools grouped by capability (TTS, video_generation, image_generation, etc.)
@@ -584,7 +564,11 @@ Establish the requested music or no-music choice before dependent asset work.
 Reuse a track, provider, voice or no-music choice already authorized for the exact
 scope. When the choice is unresolved, inspect only the relevant library, search or
 generation capability and offer useful options with licensing/cost implications.
-No mandatory tour of every music provider is needed.
+No mandatory tour of every music provider is needed. For an unresolved source
+choice, inspect the relevant results from `registry.get_by_capability("music_library")`,
+`registry.get_by_capability("music_search")` and
+`registry.get_by_capability("music_generation")`; do not silently omit a useful
+source category or generate a sample without authorized spend.
 
 If a required selected source is unavailable, report that blocker and prepare
 alternatives without silently dropping music or changing provider. Record the
