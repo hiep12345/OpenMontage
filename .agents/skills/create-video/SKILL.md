@@ -1,7 +1,6 @@
 ---
 name: create-video
-description: |
-  Create videos from a text prompt using HeyGen's Video Agent. Use when: (1) Creating a video from a description or idea, (2) Generating explainer, demo, or marketing videos from a prompt, (3) Making a video without specifying exact avatars, voices, or scenes, (4) Quick video prototyping or drafts, (5) One-shot prompt-to-video generation, (6) User says "make me a video" or "create a video about X".
+description: Generate a prompt-based video with HeyGen Video Agent when that provider is explicitly selected by the user or approved project workflow.
 homepage: https://docs.heygen.com/reference/generate-video-agent
 allowed-tools: mcp__heygen__*
 metadata:
@@ -13,6 +12,10 @@ metadata:
 ---
 
 # Create Video
+
+## Project scope
+
+Use this capability after project routing selects HeyGen Video Agent. Preserve the approved manifest, provider, runtime, voice, music, duration and spend; a generic request to make a video does not select HeyGen or authorize an API call. Load only references relevant to the chosen action.
 
 Generate complete videos from a text prompt. Describe what you want and the AI handles script writing, avatar selection, visuals, voiceover, pacing, and captions automatically.
 
