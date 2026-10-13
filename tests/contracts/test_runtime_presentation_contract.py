@@ -11,7 +11,7 @@ finds no runtime guidance will silently default to Remotion — which is the
 exact failure mode this contract prevents.
 
 See:
-- AGENT_GUIDE.md → "Present Both Composition Runtimes (HARD RULE)"
+- AGENT_GUIDE.md → "Composition Runtime Selection"
 - skills/core/hyperframes.md → "Hard rule: present both runtimes"
 - skills/meta/reviewer.md → finding #6
 """
@@ -163,14 +163,20 @@ def test_compose_stage_references_runtime_routing(manifest_path: Path):
     )
 
 
-def test_agent_guide_carries_hard_rule():
-    """The top-level agent contract must carry the HARD RULE banner so every
-    fresh-session agent reads it before picking a pipeline."""
+def test_agent_guide_preserves_authorized_runtime_and_resolves_real_choices():
+    """Runtime discovery resolves missing choices while preserving exact authority."""
     guide = (ROOT / "AGENT_GUIDE.md").read_text(encoding="utf-8")
-    assert "Present Both Composition Runtimes" in guide
-    assert "HARD RULE" in guide
-    # The rule must explicitly forbid the failure mode.
-    assert "silently" in guide.lower()
+    runtime = guide.split("### Composition Runtime Selection\n", 1)[1].split("\n### ", 1)[0]
+    assert "Preserve a runtime already selected by the user" in runtime
+    assert "including a new actionable brief with exact choices" in runtime
+    assert 'video_compose.get_info()["render_engines"]' in runtime
+    assert "concrete blocker, not permission to silently substitute" in runtime
+    assert "When runtime choice is unresolved" in runtime
+    assert "Present both Remotion and" in runtime
+    assert "when they are genuine alternatives" in runtime
+    assert "no full\nmenu or repeat approval" in runtime
+    assert "manifest's approval gates" in runtime
+    assert "Material changes require the applicable new authorization" in runtime
 
 
 def test_reviewer_has_critical_finding_for_single_option_runtime():
