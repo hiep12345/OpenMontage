@@ -1,15 +1,19 @@
 ---
 name: media-use
-description: Agent Media OS — resolve any media need (BGM, SFX, image, icon) into a frozen local file + ledger record. One verb (`resolve`) handles the full cascade — project cache, global cache, HeyGen catalog search, freeze, register. Keeps search noise on disk, hands the agent a path. Use when a composition needs background music, sound effects, images, or icons.
+description: Resolve and freeze media through the configured HeyGen media-use catalog when that asset source is selected for the project.
 ---
 
 # media-use
+
+## Project scope
+
+Use this resolver only for the selected HeyGen media-use asset source. Preserve approved or already supplied music, images and icons; needing media does not authorize catalog downloads or replacement of approved assets. Follow project access, licensing and spend authority.
 
 Resolve media needs into frozen local files. One verb, four types, zero context noise.
 
 ## When to use
 
-Call `resolve` whenever a composition needs media — background music, sound effects, images, or icons. media-use searches the HeyGen catalog, downloads the best match, freezes it locally, and registers it in a manifest. The agent gets back one line; all search noise stays on disk.
+Call `resolve` when the selected catalog source must supply media — background music, sound effects, images, or icons. media-use searches the HeyGen catalog, downloads the best match, freezes it locally, and registers it in a manifest. The agent gets back one line; all search noise stays on disk.
 
 ## Resolve
 
