@@ -1,55 +1,18 @@
----
-name: api-key-setup
-description: How to obtain and configure a BFL API key
----
+# BFL API key setup
 
-# API Key Setup
-
-> **Important:** Always verify your API key before attempting image generation. Missing or invalid keys result in "Not authenticated" errors.
-
-## Quick Validation
-
-Run this first to check if your key is configured and valid:
+Check presence without printing the value:
 
 ```bash
-# Check if key is set
-[ -z "$BFL_API_KEY" ] && echo "Error: BFL_API_KEY not set" || echo "OK: Key configured"
+[ -n "$BFL_API_KEY" ] && echo "BFL_API_KEY configured" || echo "BFL_API_KEY missing"
 ```
 
-If not set, follow the steps below.
+Presence does not establish validity. Use an authorized non-generating account/auth
+check supported by the current API, with secret headers supplied from the process
+environment and response/error logging redacted. Distinguish authentication
+rejection from network, rate-limit and permission errors.
 
-## Get a Key
-
-1. Go to **https://dashboard.bfl.ai/get-started**
-2. Click **"Create Key"**
-3. Select organization (ask user if multiple options)
-4. Copy the key (starts with `bfl_`)
-
-## For Agents Making Direct API Calls
-
-When `BFL_API_KEY` is not set in the current session:
-
-1. **Check for existing `.env`**:
-   ```bash
-   grep BFL_API_KEY .env 2>/dev/null
-   ```
-
-2. **If found, export it**:
-   ```bash
-   export BFL_API_KEY=$(grep BFL_API_KEY .env | cut -d '=' -f2)
-   ```
-
-3. **If not found, ask the user** for their key:
-   > "I need a BFL API key to generate images. Please:
-   > 1. Go to https://dashboard.bfl.ai/get-started
-   > 2. Click 'Create Key' and copy it
-   > 3. Paste it here"
-
-4. **Save and export**:
-   ```bash
-   echo 'BFL_API_KEY=bfl_provided_key' >> .env
-   echo '.env' >> .gitignore
-   export BFL_API_KEY=bfl_provided_key
-   ```
-
-Now `$BFL_API_KEY` is available for direct curl/API calls in the session.
+If absent, direct the user to https://dashboard.bfl.ai/get-started to create a key
+and enter it privately in the supported connector or ignored local environment
+file. Load that file through the application's environment loader without printing
+its contents. Never request chat-pasted credentials or grep/echo their values.
+Do not overwrite unrelated settings or add duplicate key entries.

@@ -91,49 +91,12 @@ bloomPass.radius = 0.8;
 
 ### Selective Bloom
 
-Apply bloom only to specific objects.
-
-```javascript
-import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
-import { ShaderPass } from "three/addons/postprocessing/ShaderPass.js";
-
-// Layer setup
-const BLOOM_LAYER = 1;
-const bloomLayer = new THREE.Layers();
-bloomLayer.set(BLOOM_LAYER);
-
-// Mark objects to bloom
-glowingMesh.layers.enable(BLOOM_LAYER);
-
-// Dark material for non-blooming objects
-const darkMaterial = new THREE.MeshBasicMaterial({ color: 0x000000 });
-const materials = {};
-
-function darkenNonBloomed(obj) {
-  if (obj.isMesh && !bloomLayer.test(obj.layers)) {
-    materials[obj.uuid] = obj.material;
-    obj.material = darkMaterial;
-  }
-}
-
-function restoreMaterial(obj) {
-  if (materials[obj.uuid]) {
-    obj.material = materials[obj.uuid];
-    delete materials[obj.uuid];
-  }
-}
-
-// Custom render loop
-function render() {
-  // Render bloom pass
-  scene.traverse(darkenNonBloomed);
-  composer.render();
-  scene.traverse(restoreMaterial);
-
-  // Render final scene over bloom
-  renderer.render(scene, camera);
-}
-```
+Use the installed Three.js release's selective-bloom example when this effect is
+required. Render selected objects to a separate bloom target, restore materials,
+then composite that texture with the base scene in a final pass. A direct
+`renderer.render(scene, camera)` after `composer.render()` can clear and overwrite
+the bloom; it is not a compositing implementation. Keep WebGL/TSL implementations
+separate and validate the final frame before adopting the version-specific code.
 
 ### FXAA (Anti-Aliasing)
 
@@ -519,24 +482,13 @@ function animate() {
 }
 ```
 
-## WebGPU Post-Processing (Three.js r150+)
+## WebGPU Post-Processing
 
-```javascript
-import { postProcessing } from "three/addons/nodes/Nodes.js";
-import { pass, bloom, dof } from "three/addons/nodes/Nodes.js";
-
-// Using node-based system
-const scenePass = pass(scene, camera);
-const bloomNode = bloom(scenePass, 0.5, 0.4, 0.85);
-
-const postProcessing = new THREE.PostProcessing(renderer);
-postProcessing.outputNode = bloomNode;
-
-// Render
-function animate() {
-  postProcessing.render();
-}
-```
+WebGPU/TSL exports vary by Three.js release. Before using node-based passes, inspect
+the installed package exports and that release's official examples. Do not combine
+legacy `three/addons/nodes/Nodes.js` imports with a different release's
+`PostProcessing` class. Use distinct binding names for imports and instances.
+The WebGL EffectComposer examples above remain a separate rendering path.
 
 ## Performance Tips
 

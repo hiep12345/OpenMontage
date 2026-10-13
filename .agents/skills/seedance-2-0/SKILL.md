@@ -1,7 +1,6 @@
 ---
 name: seedance-2-0
-description: |
-  Generate cinematic clips with ByteDance Seedance 2.0 — the preferred premium video model in OpenMontage when a paid gateway is configured. Use when: (1) producing trailers, teasers, hype edits, or premium cinematic clips, (2) needing native synchronized audio (speech, SFX, ambience) in a single pass, (3) needing multi-shot cuts inside one generation, (4) needing director-level camera control, (5) needing lip-sync from quoted dialogue in the prompt, (6) needing reference-conditioned generation with up to 9 images + 3 video clips + 3 audio clips, (7) wanting consistent character identity across shots. Accessible via fal.ai (`seedance_video` tool), HeyGen (Video Agent / Avatar Shots), Replicate, Runway (Enterprise, non-US), Freepik, BytePlus ModelArk, Higgsfield, Pollo, and other aggregators.
+description: Use when Seedance 2.0 video generation is explicitly requested or selected by the approved OpenMontage workflow. Follow the selected adapter contract and existing provider, voice, source and spend approvals; generic media requests use the project router.
 allowed-tools: Bash, Read, Write
 metadata:
   openclaw:
@@ -14,29 +13,17 @@ metadata:
 
 # Seedance 2.0 (ByteDance)
 
-Seedance 2.0 is the ByteDance Seed team's unified multimodal video+audio model (released Feb 2026, globally available via partner APIs April 2026). It is the **preferred premium default** for cinematic, trailer, teaser, and motion-led work inside OpenMontage whenever any supporting gateway is configured. OpenMontage wraps four gateways directly (`seedance_video` → fal.ai, `seedance_replicate` → Replicate, `runway_video` with `model="seedance_2.0"` → Runway, `higgsfield_video` with `model="seedance_2.0"` → Higgsfield); BytePlus / Freepik / HeyGen-Video-Agent wrappers are on the roadmap. The scoring engine deduplicates by `provider="seedance"` so whichever gateway the user has configured wins automatically — agents should pass `preferred_provider="seedance"` to `video_selector` (or let the scorer pick) rather than routing to a specific gateway by name.
-
-## Why it is the OpenMontage premium default
-
-| Capability | Seedance 2.0 | Notes |
-|---|---|---|
-| Single-pass native synced audio | Yes | Speech + SFX + ambience generated jointly, not post-sync |
-| Multi-shot inside one generation | Yes | Multiple cuts/shots in a single prompt |
-| Director-level camera control | Yes | Camera language (dolly, tilt, arc, crane, handheld) honored |
-| Lip-sync from quoted dialogue | Yes | `Character says: "..."` matches mouth shapes |
-| Reference conditioning | Up to 9 images + 3 video clips + 3 audio clips | 12-asset multimodal |
-| Character identity consistency | Yes | Face/subject stable across shots |
-| Max shot duration | 15 s | auto / 4–15 s |
-| Resolution ceiling | 1080p on some endpoints (720p default on fal.ai) | Provider-dependent |
-| Elo (Artificial Analysis) | 1269 (#1 as of Feb 2026) | Beat Veo 3, Sora 2, Runway Gen-4.5 |
-
-Switch away only for a specific reason: strict budget (use the `fast` variant or LTX), user-preferred provider (VEO/Sora/Kling), or a stylistic fit that favors another model.
+Use this prompt reference after Seedance 2.0 and its gateway are selected. The
+current registry is authoritative for supported adapters and input fields. Check
+current official/native model access, duration, reference limits and pricing when
+used; historical release/ranking claims are not selection evidence. Preserve the
+approved gateway and model rather than letting a selector substitute one.
 
 ## Provider surfaces
 
 | Surface | Env | OpenMontage tool | Status | Notes |
 |---|---|---|---|---|
-| **fal.ai** (primary) | `FAL_KEY` | `seedance_video` | ✅ wrapped | Model IDs below. Supports T2V, I2V, reference-to-video; `standard` and `fast` variants. Default in OpenMontage. |
+| **fal.ai** (primary) | `FAL_KEY` | `seedance_video` | ✅ wrapped | Model IDs below. Supports T2V, I2V, reference-to-video; `standard` and `fast` variants. Only when selected. |
 | **Replicate** | `REPLICATE_API_TOKEN` | `seedance_replicate` | ✅ wrapped | `bytedance/seedance-2.0` + `bytedance/seedance-2.0-fast`. Standard Replicate prediction API. |
 | **Runway** | `RUNWAY_API_KEY` | `runway_video` (model: `seedance_2.0`) | ✅ wrapped | Third-party Seedance 2.0 model inside Runway. **Unlimited/Enterprise plans, non-US only**. Selected via `model` param. |
 | **Higgsfield** | `HIGGSFIELD_API_KEY` + `_SECRET` | `higgsfield_video` (model: `seedance_2.0`) | ✅ wrapped | Seedance 2.0 is the default model on this tool. Emphasis on character identity + long-form chaining. |
@@ -61,7 +48,7 @@ The `fast` variant trades some camera/motion fidelity for latency and cost — d
 
 ## Calling Seedance 2.0 inside OpenMontage
 
-Always go through `video_selector` with `preferred_provider="seedance"` (or let the scoring engine pick it):
+Use `video_selector` only for an authorized open gateway selection after checking its fallback contract. For an exact approved gateway, use its registered adapter. The following is a selector example, not mandatory routing:
 
 ```python
 from tools.tool_registry import registry
@@ -251,13 +238,13 @@ Shot 3 (extreme close-up, rack focus): hero's eyes open, wind whipping.
 | Write dialogue longer than ~6 words on fast-cut shots | Lip-sync drift |
 | Use `fast` variant for slow-mo, multi-shot, or complex camera moves | Routinely misses on first try — route to `standard` |
 | Generate music through Seedance audio | Texture-only is fine; for real scoring use `music` / `pixabay_music` / `elevenlabs` and mix in compose |
-| Bypass `video_selector` without a reason | Loses cost/availability/fallback handling and scoring context |
+| Let selector fallback replace an exact approved route | Changes provider/model/spend without authority |
 
 ## Iteration strategy
 
-1. **Block out shape** with a single `duration=5` `fast` T2V pass at the intended framing. Confirm the composition works.
+1. **Reuse approved evidence**. If a new preview is needed, use the approved variant/duration within the sample budget; a paid fast pass is not mandatory.
 2. **Lock the seed** once the composition reads.
-3. **Upgrade to `standard`** with the same seed, tighten camera and lighting language.
+3. Retain the approved variant. Change to `standard` only when the quality need and added spend are authorized; seed reuse does not guarantee cross-model equivalence.
 4. **Extend and add shots** — move to multi-shot or longer duration only after a single-shot version is clean.
 5. **Keep a per-clip README** with prompt + seed + variant for every shot that makes the cut, so the compose stage can re-render consistent retakes.
 

@@ -12,7 +12,8 @@ Playwright can record browser interactions as video - perfect for demo footage i
 ### Installation
 
 ```bash
-# In your video project
+# Only in a new, authorized disposable recording project. For existing repos,
+# inspect package.json/lockfile and reuse the installed test setup.
 npm init -y
 npm install -D playwright @playwright/test
 npx playwright install chromium
@@ -74,7 +75,7 @@ viewport: { width: 1280, height: 720 }
 viewport: { width: 1080, height: 1080 }
 
 // Mobile
-viewport: { width: 390, height: 844 } // iPhone 14
+viewport: { width: 390, height: 844 } // responsive viewport approximation; not physical iPhone/Safari testing
 ```
 
 ### Video Quality Settings
@@ -407,37 +408,12 @@ const context = await browser.newContext({
 });
 ```
 
-## Cookie Banner Dismissal
+## Consent and browser scope
 
-Comprehensive selector list for common consent platforms:
-
-```typescript
-const COOKIE_SELECTORS = [
-  '#onetrust-accept-btn-handler',           // OneTrust
-  '#CybotCookiebotDialogBodyButtonAccept',  // Cookiebot
-  '.cc-btn.cc-dismiss',                      // Cookie Consent by Insites
-  '[class*="cookie"] button[class*="accept"]',
-  '[class*="consent"] button[class*="accept"]',
-  'button:has-text("Accept all")',
-  'button:has-text("Accept cookies")',
-  'button:has-text("Got it")',
-];
-
-async function dismissCookieBanners(page: Page): Promise<void> {
-  await page.waitForTimeout(500);
-  for (const selector of COOKIE_SELECTORS) {
-    try {
-      const btn = page.locator(selector).first();
-      if (await btn.isVisible({ timeout: 100 })) {
-        await btn.click({ timeout: 500 });
-        return;
-      }
-    } catch { /* try next */ }
-  }
-}
-```
-
-Call after `page.goto()` and on `page.on('load')` for navigation.
+Use only authorized app/test data and browser sessions. Inspect any consent banner
+and apply the user's stated preference; do not run generic accept-all selectors.
+Use supported browser/session tools available in the host. The standalone scripts
+here are for an explicitly selected local Playwright recording environment.
 
 ## Important: Injected Elements Appear in Video
 
@@ -451,7 +427,7 @@ Call after `page.goto()` and on `page.on('load')` for navigation.
 4. **Match Remotion dimensions** - 1920x1080 at 30fps typical
 5. **Test without recording first** - Debug before final capture
 6. **Clear browser state** - Use fresh context for clean demos
-7. **Dismiss cookie banners** - Use comprehensive selector list above
+7. **Handle consent banners** — Inspect and follow the user's preference; do not accept all automatically.
 8. **Re-inject on navigation** - Cursor/listeners reset on page load
 
 ---
@@ -466,4 +442,4 @@ If this skill is missing information or could be improved:
   1. Update this skill with improvements
   2. Create a PR to github.com/digitalsamba/claude-code-video-toolkit
 
-Just say "improve this skill" and I'll guide you through updating `.claude/skills/playwright-recording/SKILL.md`.
+Just say "improve this skill" and I'll guide you through updating `.agents/skills/playwright-recording/SKILL.md`.

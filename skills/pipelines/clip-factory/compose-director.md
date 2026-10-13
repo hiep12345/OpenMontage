@@ -6,10 +6,16 @@ Render each clip and platform variant independently. The important behaviors her
 
 ## Runtime Routing (HARD CONSTRAINT — Remotion or FFmpeg only)
 
+Follow `AGENT_GUIDE.md` → "Composition Runtime Selection". Preserve an exact
+authorized `render_runtime` and route only through a viable supported path.
+An unavailable or incompatible authorized runtime is a concrete blocker; no
+silent substitution. Preserve manifest/proposal/asset gates, authorized spend,
+material-change approval and separate publication approval.
+
 This pipeline is Phase 1 deferred from the HyperFrames adoption schedule. `edit_decisions.render_runtime` must be `"remotion"` (default) or `"ffmpeg"` (pure-concat clip jobs with no composition). HyperFrames is NOT a valid runtime here — clip-factory depends on Remotion word-level caption burn, and HyperFrames caption parity is deferred work.
 
-- If `edit_decisions.render_runtime == "hyperframes"`, stop. Re-open the idea stage so the user can be presented the real constraint and lock `remotion` with a `render_runtime_selection` decision that records `hyperframes` as `rejected_because: "caption-burn parity deferred on clip-factory"`.
-- Per AGENT_GUIDE.md → "Present Both Composition Runtimes (HARD RULE)": the constraint is NOT an excuse to skip the conversation. The user still gets to see that HyperFrames exists and why it isn't viable here.
+- If `edit_decisions.render_runtime == "hyperframes"`, stop and surface the pipeline constraint as a concrete blocker. A supported replacement requires applicable authorization and an appended `render_runtime_selection` decision; never silently rewrite the runtime.
+- Explain a newly encountered pipeline constraint as a concrete blocker; reuse exact recorded authority for a supported runtime without a repeated menu.
 - Pass `proposal_packet`/`brief` to `video_compose.execute()` so the in-tool runtime-swap check runs end-to-end.
 
 ## Prerequisites

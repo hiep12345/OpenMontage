@@ -142,12 +142,37 @@ def test_conditional_loading_preserves_production_and_caption_gates() -> None:
     caption_gate = _guide_section("Caption website acceptance")
     assert "exact source formula/media match" in caption_gate
     assert "FAIL or NOT TESTED blocks handoff readiness" in caption_gate
-    runtime_gate = _guide_section("Present Both Composition Runtimes (HARD RULE)")
-    assert "MUST present both options" in runtime_gate
-    assert "wait for explicit user approval" in runtime_gate
-    assert "retains the recorded runtime and shortlist" in runtime_gate
+    runtime_gate = _guide_section("Composition Runtime Selection")
+    assert "Preserve a runtime already selected by the user" in runtime_gate
+    assert "including a new actionable brief with exact choices" in runtime_gate
+    assert 'video_compose.get_info()["render_engines"]' in runtime_gate
+    assert "unavailable selected runtime" in runtime_gate
+    assert "When runtime choice is unresolved" in runtime_gate
+    assert "genuine alternatives" in runtime_gate
+    assert "no full" in runtime_gate and "repeat approval" in runtime_gate
+    assert "manifest's approval gates, selected budget and publication boundaries" in runtime_gate
+    assert "Material changes require" in runtime_gate
+    assert "MUST present both options" not in runtime_gate
     delivery_gate = _guide_section("Hub-bound MT episode identity")
     assert "LOCAL_ONLY" in delivery_gate
     assert "still requires novelty evidence reads and normal production" in delivery_gate
     assert "does not authorize Hub delivery or publishing" in delivery_gate
     assert "intent cannot\nlater acquire a Hub plan" in delivery_gate
+
+
+def test_preflight_scopes_discovery_without_authorizing_fallback_or_spend() -> None:
+    preflight = _guide_section("Mandatory Preflight")
+    for required in (
+        "required tools and the selected provider/runtime",
+        "preflight does not restart their selection",
+        "Maintenance and inspection",
+        "not proof of account access",
+        "does not authorize substitution",
+        "manifest approvals and spend boundaries",
+        "not mandatory context for every production",
+    ):
+        assert required in preflight
+    setup = _guide_section("Setup Offers for Relevant Blockers")
+    assert "missing capability blocks the requested or selected path" in setup
+    assert "existing exact authorization" in setup
+    assert "Do not install dependencies, switch provider or add paid samples" in setup

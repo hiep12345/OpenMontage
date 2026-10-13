@@ -1,240 +1,147 @@
 ---
 name: polling-patterns
-description: Implementing async polling for BFL API responses
+description: Accepted-job persistence and bounded polling for a selected BFL generation request.
 ---
 
-# Polling Patterns
+# BFL polling and recovery
 
-BFL API uses asynchronous generation. All requests return a `polling_url` for status checking.
+Use these illustrative helpers only with the selected BFL endpoint/model and its current response contract. They are not an installed SDK. A successful submission supplies a `polling_url`; `Ready` supplies `result`, and only the confirmed `Pending` state is polled here. Every other state, including cancellation or an unfamiliar value, stops polling. Check the current adapter or official documentation before extending that whitelist.
 
-## Basic Flow
+`persist_accepted_job(record)` is a caller-provided durable receipt callback (awaitable in the async example). Bind it to a unique task/request identity, selected provider/model, and approved input before submission. It must save the handle atomically and durably, returning only after success; do not expose credentials or signed URLs in public logs. A failed write stops polling and raises an exception with the recoverable `handle`. Save that handle through an available durable channel before leaving the task. No client can guarantee crash recovery if every storage channel fails.
 
-```
-1. POST request to model endpoint
-   └─> Immediate response: { "polling_url": "..." }
+Before a fresh POST, inspect that request's receipt. If it contains a handle, use `resume`/`resume_async` without another POST. If a prior POST has an unknown outcome, reconcile with the provider first; an empty receipt is not proof that submission failed. The helpers never retry POSTs. Errors before a usable handle arrives mean unknown acceptance, not authorization to resend.
 
-2. GET polling_url (repeat until complete)
-   └─> { "status": "Pending" | "Ready" | "Error" }
-
-3. When "Ready", download result sample URL
-   └─> URL expires in 10 minutes
-```
-
-## Response States
-
-| Status | Description | Action |
-|--------|-------------|--------|
-| `Pending` | Request queued/processing | Continue polling |
-| `Ready` | Generation finished | Download result |
-| `Error` | Generation Error | Handle error |
-
-## Polling Strategies
-
-### Simple Fixed Interval
+## Synchronous example
 
 ```python
+import math
 import time
 import requests
 
-def poll_fixed_interval(polling_url, headers, interval=2, timeout=120):
-    """Simple polling with fixed interval."""
-    start_time = time.time()
+class SubmissionUnknown(RuntimeError):
+    """No usable handle received; reconcile before another POST."""
 
-    while time.time() - start_time < timeout:
-        response = requests.get(polling_url, headers=headers)
-        data = response.json()
+class AcceptedJobError(RuntimeError):
+    def __init__(self, handle, phase):
+        self.handle = handle
+        self.phase = phase
+        super().__init__(f"Accepted job: {phase} failed; recover via .handle, do not resubmit")
 
-        if data["status"] == "Ready":
-            return data["result"]
-        elif data["status"] == "Error":
-            raise Exception(data.get("error", "Generation Error"))
-
-        time.sleep(interval)
-
-    raise TimeoutError("Polling timeout exceeded")
-```
-
-### Exponential Backoff (Recommended)
-
-```python
-import time
-import random
-import requests
-
-def poll_with_backoff(polling_url, headers, max_attempts=30):
-    """Polling with exponential backoff and jitter."""
-    base_delay = 0.5  # Start with 500ms
-    max_delay = 10    # Cap at 10 seconds
-
-    for attempt in range(max_attempts):
-        response = requests.get(polling_url, headers=headers)
-        data = response.json()
-
-        if data["status"] == "Ready":
-            return data["result"]
-        elif data["status"] == "Error":
-            raise Exception(data.get("error", "Generation Error"))
-
-        # Exponential backoff with jitter
-        delay = min(base_delay * (2 ** attempt), max_delay)
-        jitter = random.uniform(0, delay * 0.1)  # 10% jitter
-        time.sleep(delay + jitter)
-
-    raise TimeoutError("Max polling attempts exceeded")
-```
-
-### Adaptive Polling
-
-```python
-import time
-import requests
-
-def poll_adaptive(polling_url, headers, timeout=120):
-    """Adaptive polling that adjusts based on status."""
-    start_time = time.time()
-    delays = {
-        "Pending": 2.0,      # Queue/processing
-        None: 1.5            # Unknown/default
-    }
-
-    while time.time() - start_time < timeout:
-        response = requests.get(polling_url, headers=headers)
-        data = response.json()
-
-        status = data.get("status")
-
-        if status == "Ready":
-            return data["result"]
-        elif status == "Error":
-            raise Exception(data.get("error", "Generation Error"))
-
-        delay = delays.get(status, delays[None])
-        time.sleep(delay)
-
-    raise TimeoutError("Polling timeout exceeded")
-```
-
-## Complete Example: Submit and Poll
-
-```python
-import time
-import requests
+def ready_result(data):
+    if data.get("status") == "Ready":
+        return True, data["result"]
+    if data.get("status") == "Pending":
+        return False, None
+    raise RuntimeError("Terminal or unrecognized provider state; inspect response")
 
 class BFLClient:
     def __init__(self, api_key, base_url="https://api.bfl.ai"):
         self.base_url = base_url
-        self.headers = {
-            "x-key": api_key,
-            "Content-Type": "application/json"
-        }
+        self.headers = {"x-key": api_key, "Content-Type": "application/json"}
 
-    def generate(self, model, prompt, **kwargs):
-        """Submit generation request and poll for result."""
-        # Submit request
-        endpoint = f"{self.base_url}/v1/{model}"
-        payload = {"prompt": prompt, **kwargs}
+    def generate(self, model, prompt, persist_accepted_job, **kwargs):
+        try:
+            response = requests.post(
+                f"{self.base_url}/v1/{model}", headers=self.headers,
+                json={"prompt": prompt, **kwargs}, timeout=30,
+            )
+            response.raise_for_status()
+            handle = response.json()["polling_url"]
+            if not isinstance(handle, str) or not handle:
+                raise ValueError("Missing polling URL")
+        except BaseException as error:
+            raise SubmissionUnknown("Reconcile submission; do not blindly resend") from error
+        try:
+            persist_accepted_job({"provider": "bfl", "model": model, "handle": handle})
+        except BaseException as error:
+            raise AcceptedJobError(handle, "receipt") from error
+        return self.resume(handle)
 
-        response = requests.post(endpoint, headers=self.headers, json=payload)
-        response.raise_for_status()
-
-        polling_url = response.json()["polling_url"]
-
-        # Poll for result
-        return self._poll(polling_url)
-
-    def _poll(self, polling_url, timeout=120):
-        """Poll until completion or timeout."""
-        start = time.time()
-        delay = 1.0
-
-        while time.time() - start < timeout:
-            response = requests.get(polling_url, headers=self.headers)
-            data = response.json()
-
-            if data["status"] == "Ready":
-                return data["result"]
-            elif data["status"] == "Error":
-                raise Exception(data.get("error"))
-
-            time.sleep(delay)
-            delay = min(delay * 1.5, 5.0)  # Gradual backoff
-
-        raise TimeoutError("Generation timed out")
-
-# Usage
-client = BFLClient("your-api-key")
-result = client.generate(
-    model="flux-2-pro",
-    prompt="A beautiful sunset over mountains"
-)
-print(f"Image URL: {result['sample']}")
+    def resume(self, handle, timeout=120, interval=2):
+        """GET only; load handle from the request's durable receipt."""
+        try:
+            if not math.isfinite(timeout) or not math.isfinite(interval) or timeout <= 0 or interval <= 0:
+                raise ValueError("Positive timeout and interval required")
+            deadline = time.monotonic() + timeout
+            while True:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise TimeoutError("Polling deadline exceeded")
+                response = requests.get(handle, headers=self.headers,
+                                        timeout=min(20, remaining))
+                response.raise_for_status()
+                done, result = ready_result(response.json())
+                if done:
+                    return {"handle": handle, "result": result}
+                time.sleep(min(interval, max(0, deadline - time.monotonic())))
+        except BaseException as error:
+            raise AcceptedJobError(handle, "poll") from error
 ```
 
-## URL Expiration
+`AcceptedJobError.handle` remains available for receipt errors, HTTP/JSON errors, unknown/failed/cancelled states, deadline expiry and interruption. Its cause retains the original error. The wrapper intentionally stops this illustrative operation even for an interruption; record the handle, then honor the stop. A local poll timeout does not cancel the remote job.
 
-**Critical:** Result URLs expire after 10 minutes. Always download immediately.
+## Asynchronous example
 
-```python
-def download_result(result_url, output_path):
-    """Download result image before URL expires."""
-    response = requests.get(result_url)
-    response.raise_for_status()
-
-    with open(output_path, 'wb') as f:
-        f.write(response.content)
-
-    return output_path
-```
-
-## Batch Processing with Polling
+Use the definitions above and an already configured `aiohttp` session. Each accepted job gets its own receipt before its first status GET. Cancellation after acceptance retains the handle, including during response cleanup or receipt persistence.
 
 ```python
 import asyncio
 import aiohttp
 
-async def generate_batch(client, prompts, model="flux-2-pro"):
-    """Generate multiple images concurrently."""
-    async with aiohttp.ClientSession() as session:
-        # Submit all requests
-        tasks = []
-        for prompt in prompts:
-            task = submit_and_poll(session, client, model, prompt)
-            tasks.append(task)
+class AcceptedJobCancelled(AcceptedJobError):
+    def __init__(self, handle):
+        super().__init__(handle, "interrupted")
 
-        # Wait for all to complete
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-        return results
-
-async def submit_and_poll(session, client, model, prompt):
-    """Async submit and poll for single image."""
-    # Submit
-    async with session.post(
-        f"{client.base_url}/v1/{model}",
-        headers=client.headers,
-        json={"prompt": prompt}
-    ) as response:
-        data = await response.json()
-        polling_url = data["polling_url"]
-
-    # Poll
-    while True:
-        async with session.get(polling_url, headers=client.headers) as response:
+async def submit_and_poll(session, client, model, prompt, persist_accepted_job):
+    handle = None
+    phase = "submit"
+    try:
+        async with session.post(
+            f"{client.base_url}/v1/{model}", headers=client.headers,
+            json={"prompt": prompt}, timeout=aiohttp.ClientTimeout(total=30),
+        ) as response:
+            response.raise_for_status()
             data = await response.json()
+            candidate = data.get("polling_url")
+            if not isinstance(candidate, str) or not candidate:
+                raise ValueError("Missing polling URL")
+            handle = candidate
+        phase = "receipt"
+        await persist_accepted_job({"provider": "bfl", "model": model, "handle": handle})
+    except asyncio.CancelledError as error:
+        if handle is not None:
+            raise AcceptedJobCancelled(handle) from error
+        raise SubmissionUnknown("Interrupted submission; reconcile before resending") from error
+    except BaseException as error:
+        if handle is not None:
+            raise AcceptedJobError(handle, phase) from error
+        raise SubmissionUnknown("Reconcile submission; do not blindly resend") from error
+    return await resume_async(session, client, handle)
 
-            if data["status"] == "Ready":
-                return data["result"]
-            elif data["status"] == "Error":
-                raise Exception(data.get("error"))
-
-        await asyncio.sleep(2)
+async def resume_async(session, client, handle, timeout=120, interval=2):
+    """GET only; no submission or implicit retry."""
+    try:
+        if not math.isfinite(timeout) or not math.isfinite(interval) or timeout <= 0 or interval <= 0:
+            raise ValueError("Positive timeout and interval required")
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + timeout
+        while True:
+            remaining = deadline - loop.time()
+            if remaining <= 0:
+                raise TimeoutError("Polling deadline exceeded")
+            async with session.get(handle, headers=client.headers,
+                                   timeout=aiohttp.ClientTimeout(total=min(20, remaining))) as response:
+                response.raise_for_status()
+                done, result = ready_result(await response.json())
+            if done:
+                return {"handle": handle, "result": result}
+            await asyncio.sleep(min(interval, max(0, deadline - loop.time())))
+    except asyncio.CancelledError as error:
+        raise AcceptedJobCancelled(handle) from error
+    except BaseException as error:
+        raise AcceptedJobError(handle, "poll") from error
 ```
 
-## Best Practices
+For an approved parallel batch, cap concurrent submissions to the provider's rate limit and remaining budget, bind a separate durable callback to each request, and collect each result/error rather than dropping siblings when one fails. Use `asyncio.gather(..., return_exceptions=True)` to collect per-job outcomes. The wrapper deliberately converts post-accept cancellation into an ordinary accepted-job exception so batch collection preserves its handle; honor that interruption after recording the outcome. Reconcile each saved handle independently. Bounded backoff/jitter can replace the fixed interval while retaining the deadline and state whitelist. A rate-limit response is not a reason to submit again.
 
-1. **Always implement timeouts** - Never poll indefinitely
-2. **Use exponential backoff** - Reduces server load, handles congestion
-3. **Add jitter** - Prevents thundering herd when polling multiple requests
-4. **Handle all status values** - Including unexpected ones
-5. **Download immediately** - URLs expire in 10 minutes
-6. **Log polling attempts** - Useful for debugging and monitoring
-7. **Respect rate limits** - Implement proper backoff on 429 responses
+Download a completed artifact promptly to a task-owned output after checking the current response contract and expiry; do not rely on a fixed URL lifetime. Preserve existing outputs unless replacement is authorized. Record the local artifact and its accepted handle before considering the job complete.

@@ -1,6 +1,6 @@
 ---
 name: elevenlabs
-description: Generate AI voiceovers, sound effects, and music using ElevenLabs APIs. Use when creating audio content for videos, podcasts, or games. Triggers include generating voiceovers, narration, dialogue, sound effects from descriptions, background music, soundtrack generation, voice cloning, or any audio synthesis task.
+description: Use when ElevenLabs audio generation is explicitly requested or selected by the approved OpenMontage workflow. Follow the selected adapter contract and existing provider, voice, source and spend approvals; generic media requests use the project router.
 ---
 
 # ElevenLabs Audio Generation
@@ -9,7 +9,7 @@ description: Generate AI voiceovers, sound effects, and music using ElevenLabs A
 
 Inspect the OpenMontage registry before choosing an authentication path.
 
-- Prefer `fal_elevenlabs_tts` when it is available. It provides Eleven v3,
+- Use `fal_elevenlabs_tts` when that gateway is selected. It provides Eleven v3,
   Multilingual v2, and Turbo v2.5 through the centrally managed fal.ai
   connection; no separate ElevenLabs credential is needed.
 - Use `elevenlabs_tts` only when that direct provider is already reported as
@@ -19,8 +19,8 @@ Inspect the OpenMontage registry before choosing an authentication path.
   administrator setup request.
 
 The direct API examples below require a centrally configured
-`ELEVENLABS_API_KEY`; they are not the default path when the fal.ai provider is
-available.
+`ELEVENLABS_API_KEY`; use them only for the selected direct API route.
+Gateway availability alone does not override the approved provider.
 
 ## Text-to-Speech
 
@@ -157,7 +157,7 @@ with open("music.mp3", "wb") as f:
 ### Complete Workflow: Script to Synchronized Scene
 
 ```
-VOICEOVER-SCRIPT.md → voiceover.py → public/audio/ → Remotion composition
+VOICEOVER-SCRIPT.md → selected TTS adapter → public/audio/ → Remotion composition
         ↓                  ↓               ↓                 ↓
   Scene narration    Generate MP3    Audio files     <Audio> component
   with durations     per scene       with timing     synced to scenes
@@ -165,19 +165,11 @@ VOICEOVER-SCRIPT.md → voiceover.py → public/audio/ → Remotion composition
 
 ### Step 1: Generate Per-Scene Audio
 
-Use the toolkit's voiceover tool to generate audio for each scene:
+Use the selected registered `elevenlabs_tts` or `fal_elevenlabs_tts` adapter per
+scene. Inspect its current schema, save the actual output paths and probe durations
+into the existing scene manifest. There is no `tools/voiceover.py` CLI here.
 
-```bash
-# Generate voiceover files for each scene
-python tools/voiceover.py --scene-dir public/audio/scenes --json
 
-# Output:
-# public/audio/scenes/
-#   ├── scene-01-title.mp3
-#   ├── scene-02-problem.mp3
-#   ├── scene-03-solution.mp3
-#   └── manifest.json  (durations for each file)
-```
 
 The `manifest.json` contains timing info:
 ```json
@@ -341,7 +333,7 @@ export const DemoScene: React.FC = () => {
 ### Error Handling
 
 ```tsx
-import { Audio, staticFile, delayRender, continueRender } from 'remotion';
+import { Audio, staticFile, delayRender, continueRender, cancelRender } from 'remotion';
 import { useEffect, useState } from 'react';
 
 export const SafeAudio: React.FC<{ src: string }> = ({ src }) => {
@@ -356,7 +348,7 @@ export const SafeAudio: React.FC<{ src: string }> = ({ src }) => {
     };
     audio.onerror = () => {
       console.error(`Failed to load audio: ${src}`);
-      continueRender(handle); // Continue without audio rather than hang
+      cancelRender(new Error(`Required audio failed to load: ${src}`));
     };
   }, [src, handle]);
 
@@ -365,20 +357,12 @@ export const SafeAudio: React.FC<{ src: string }> = ({ src }) => {
 };
 ```
 
-### Toolkit Command: /generate-voiceover
+### Scene integration
 
-The `/generate-voiceover` command handles the full workflow:
-
-```
-/generate-voiceover
-
-1. Reads VOICEOVER-SCRIPT.md
-2. Extracts narration for each scene
-3. Generates audio via ElevenLabs API
-4. Saves to public/audio/scenes/
-5. Creates manifest.json with durations
-6. Updates project.json with timing info
-```
+Use the production manifest and current registry for per-scene narration; there is
+no `/generate-voiceover` command contract in this checkout. Required narration
+missing or failing to load blocks final acceptance; an optional audio omission
+must be disclosed and permitted by the brief.
 
 ## Popular Voices
 

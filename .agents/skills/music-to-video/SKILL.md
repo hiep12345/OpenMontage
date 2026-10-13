@@ -1,13 +1,13 @@
 ---
 name: music-to-video
-description: "Use when the user has a music track (an audio file, or a video to pull audio from) and wants a beat-synced HyperFrames video, calm to hard-hitting. The music drives everything: one analyzer reads it once, the orchestrator lays out the frames and fills a per-frame plan, and one sub-agent builds each frame. Typography and templates are the floor — a complete video needs zero assets — but any images or videos the user supplies are cut into the frames on the same beat grid (beat-cut / ken-burns). The genre (lyric video, slideshow, kinetic promo) falls out of the per-frame choices; the pipeline never branches on it."
+description: Build a beat-synced video from supplied or approved music when HyperFrames is selected. Inspect the analyzer map, preserve approved audio/style, and build directly or with useful permitted workers.
 ---
 
 # music-to-video — one music-grounded, beat-synced video workflow
 
 Use this skill to turn a **music track** into a beat-synced HyperFrames video. You analyze the track once, lay out the frames, fill in a per-frame plan, and build each frame as a composition. The input is a music track plus optional user images or videos — there is **no narration and no website capture**. Typography and templates are the floor (a complete video needs zero assets); any media the user supplies is cut in on the same beat grid.
 
-You are the **orchestrator**. Work in `videos/<project>/`. Run the steps in order and pass each **Gate** before moving on. Two steps need the user: **Step 3** (plan approval) and **Step 6** (render approval). Do every step yourself except **Step 4**, where you dispatch **one sub-agent per frame**. Keep design and motion rules out of this file — they live in `references/` and the `frame-worker` sub-agent.
+You are the **orchestrator**. Work in `videos/<project>/`. Run the steps in order and pass each **Gate** before moving on. Two steps need the user: **Step 3** (plan approval) and **Step 6** (any outstanding render gate; reuse exact-scope approval). Work directly; Step 4 may use useful bounded workers under the native/project delegation limits. Keep design and motion rules out of this file — they live in `references/` and the `frame-worker` sub-agent.
 
 `SKILL_DIR` = this skill directory. `PROJECT_DIR` = `videos/<project-name>/`.
 
@@ -24,9 +24,16 @@ Workflow: Step 0 setup → `hyperframes.json` + `assets/bgm.mp3`; Step 1 analyze
 
 Goal: Establish the music source, create the HyperFrames project, and note any user-supplied media.
 
-The **music is the spine** — establish one track before anything else. This skill is tuned for **fast, high-energy BGM**: a strong beat grid drives the cuts (calm tracks work, but pace by phrase rather than beat). If the user gave you audio — a music file, or a video to pull the audio from — use it. If not, generate one: choose the mood from the user's description (e.g. "driving synthwave", "trap beat", "upbeat corporate") and produce a track via `/hyperframes-media` (`references/bgm.md` — HeyGen retrieval when credentialed, else local Lyria / MusicGen; ElevenLabs or another generator also works). Before generating, run `npx hyperframes auth status` and **relay its output verbatim (don't paraphrase or rewrite it)** — it shows whether BGM comes from HeyGen or local MusicGen and, if not signed in, how to sign in. **If not signed in, STOP and wait for the user to choose — sign in, or continue offline with local MusicGen — before generating the track**; don't write keys into a per-repo `.env`. (In autonomous mode, note the status and continue offline.) See `/hyperframes-media` → Preflight for the canonical guidance. Either way the track lands at `assets/bgm.mp3`. Stage any user-supplied images or videos so frames can weave them in on the beat grid; otherwise typography carries the whole video.
+The music drives timing. Preserve user-supplied or approved audio and stage its
+provenance. If music is still needed, choose an authorized source through the
+project pipeline and [media preflight](../hyperframes-media/SKILL.md). Lyria is a
+cloud route; offline work requires installed local dependencies/models. Do not
+stop for unrelated signup or silently select another provider. Stage authorized
+images/videos if supplied; otherwise typography may carry the composition.
 
-Initialize only if `hyperframes.json` is missing. Name `<project>` from the brief in kebab-case, such as `midnight-drive-loop` — never a timestamp. `init` checks the installed skills against the latest on GitHub and updates the global set if any are out of date.
+
+
+Initialize only if `hyperframes.json` is missing. Name `<project>` from the brief in kebab-case, such as `midnight-drive-loop` — never a timestamp. Before init, follow the pinned no-skill-update contract in `../hyperframes/SKILL.md`; never refresh skills as a side effect.
 
 ```bash
 npx hyperframes init "videos/<project>" --non-interactive --example=blank
@@ -46,7 +53,7 @@ The **brand** (font + palette) is chosen at Step 3, not here. Don't pick a genre
 
 Goal: Produce the one canonical timing analysis the whole video is built on.
 
-`analyze-beatgrid.py` is the **only** beat analyzer — never re-measure beats with another tool or by ear. It reads the track once and writes `audiomap.json`: energy phases (level / density / feel), onsets + `onset_rate`, rolls, silences, `hard_stops`, `key_moments`, phrases, tempo / grid, and `audio.duration_sec`. It's deterministic — the same file always gives the same map. Most fields are reliable on any music; `bpm` and `beats_sec` are reliable only when the music is genuinely rhythmic, and judging that is the call you make at Step 2.
+Use `analyze-beatgrid.py` for the initial deterministic map. Inspect timing anomalies and listen/check representative beat alignment before relying on it; correct or disclose unreliable results. It reads the track once and writes `audiomap.json`: energy phases (level / density / feel), onsets + `onset_rate`, rolls, silences, `hard_stops`, `key_moments`, phrases, tempo / grid, and `audio.duration_sec`. It's deterministic — the same file always gives the same map. Field accuracy needs checking against the track; `bpm` and `beats_sec` are reliable only when the music is genuinely rhythmic, and judging that is the call you make at Step 2.
 
 Prerequisites: Python 3 with `librosa`, `numpy`, and `soundfile` available. If import fails, install them into the active Python environment before running the analyzer:
 
@@ -97,7 +104,7 @@ Fix every `✗` (hard errors: duration mismatch, frames not tiling the track, a 
 
 Goal: Build every frame as a self-contained composition file.
 
-Create `compositions/frames/`. Read [`sub-agents/frame-worker.md`](sub-agents/frame-worker.md) and `../hyperframes-core/references/subagent-dispatch.md`. Dispatch **one frame-worker per frame**, in parallel where possible (otherwise in waves). Each worker gets exactly one frame and this context:
+Create `compositions/frames/`. Read [`sub-agents/frame-worker.md`](sub-agents/frame-worker.md) and `../hyperframes-core/references/subagent-dispatch.md`. Build directly or delegate bounded independent frame groups when useful and allowed. Each task receives the relevant frames and this context:
 
 ```text
 PROJECT_DIR: <abs path>
@@ -129,7 +136,7 @@ node <SKILL_DIR>/scripts/assemble-index.mjs --storyboard "$PROJECT_DIR/STORYBOAR
   --hyperframes "$PROJECT_DIR" --audiomap "$PROJECT_DIR/audiomap.json"
 ```
 
-Fix any `✗` it reports — a missing or blank frame file means that worker wrote a partial file; re-dispatch it (Step 4) and re-assemble.
+Fix any `✗` it reports — a missing or blank frame file means that worker wrote a partial file; repair it directly or with the existing permitted worker (Step 4) and re-assemble.
 
 **Gate:** `index.html` exists; total duration == `audiomap.audio.duration_sec`.
 
@@ -145,7 +152,7 @@ Run the CLI on the **assembled project** — that's the correct unit (the per-fr
 ( cd "$PROJECT_DIR" && npx hyperframes lint . && npx hyperframes validate . && npx hyperframes inspect . )
 ```
 
-Inspect at `t=0`, each frame start, the strongest DROP / SURGE, every `hard_stops[].t`, and the final frame. On failure, make the **cheapest safe fix** yourself: edit the offending `compositions/frames/NN-*.html`. Never change duration or audio timing to hide a sync issue. Once the gates pass, pause for user review, then render only on approval:
+Inspect at `t=0`, each frame start, the strongest DROP / SURGE, every `hard_stops[].t`, and the final frame. On failure, make the **cheapest safe fix** yourself: edit the offending `compositions/frames/NN-*.html`. Never change duration or audio timing to hide a sync issue. Once checks and applicable project gates pass, reuse exact-scope render authority or obtain any outstanding approval before rendering:
 
 ```bash
 ( cd "$PROJECT_DIR" && npx hyperframes render . --skill=music-to-video -q draft -o renders/video.mp4 --fps 30 )

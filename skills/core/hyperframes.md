@@ -5,9 +5,9 @@ OpenMontage pipelines should choose HyperFrames over Remotion, how OpenMontage
 artifacts map to HyperFrames project files, and how the compose stage drives
 the HyperFrames CLI.
 
-For raw HyperFrames knowledge (authoring contract, `data-*` attributes, GSAP
-timeline rules, CLI flags, registry blocks, website-to-video), read the Layer 3
-skills:
+For a selected HyperFrames path or a concrete feasibility gap, read only the
+relevant Layer 3 references below (authoring contract, `data-*` attributes, GSAP
+timeline rules, CLI flags, registry blocks, website-to-video):
 
 - `.agents/skills/hyperframes/` — router into the focused skills below (HF 0.7+ split the monolithic skill)
 - `.agents/skills/hyperframes-core/` — composition contract: `data-*` timing, tracks, sub-compositions, deterministic-render rules
@@ -36,8 +36,9 @@ OpenMontage separates two concepts:
   (`remotion`, `hyperframes`, `ffmpeg`). Also chosen at proposal.
 
 Both are locked in `proposal_packet.schema.json` and carried through
-`edit_decisions` unchanged unless a `render_runtime_selection` decision is
-logged in `decision_log`. Silent runtime swaps are a contract violation.
+`edit_decisions` unchanged unless an authorized change is appended as a
+`render_runtime_selection` decision in `decision_log`. A logged decision alone
+is not authorization. Silent runtime swaps are a contract violation.
 
 ### Decision matrix
 
@@ -54,22 +55,20 @@ logged in `decision_log`. Silent runtime swaps are a contract violation.
 | Pure concat / trim of source clips, no composition | **FFmpeg** | Neither Remotion nor HyperFrames add value here. |
 | Remotion is not installed on this machine | **HyperFrames** (if available) or **FFmpeg** | Do not silently fall back. Tell the user before downgrading. |
 
-### Hard rule: present both runtimes when both are available
+### Runtime authority and unresolved choices
 
-The decision matrix above is input for the conversation with the user, NOT
-a license to silently pick a "default." When both Remotion and HyperFrames
-are available on the machine, the proposal stage MUST:
+Follow `AGENT_GUIDE.md` → "Composition Runtime Selection" as the canonical
+contract. Preserve an exact authorized `render_runtime`, including a new actionable
+brief with exact choices, without a runtime menu or repeat approval. When runtime
+choice is unresolved, compare Remotion and HyperFrames only when both are viable
+for this brief; record actual alternatives and constraint evidence in a
+`render_runtime_selection` decision. An unavailable or incompatible authorized
+runtime is a concrete blocker; do not substitute it silently. Preserve the
+manifest's proposal/asset approval gates, authorized spend, material-change
+approval and separate publication approval.
 
-1. Present both to the user with brief-specific pros/cons.
-2. Recommend one with rationale tied to `delivery_promise` and
-   `visual_approach`.
-3. Wait for approval.
-4. Log both in `options_considered` of a `render_runtime_selection`
-   decision.
-
-See `AGENT_GUIDE.md` → "Present Both Composition Runtimes (HARD RULE)" for
-the full contract and `skills/meta/reviewer.md` for the CRITICAL-finding
-enforcement.
+The decision matrix informs an unresolved choice; it does not override an
+authorized runtime. See `skills/meta/reviewer.md` for review of this boundary.
 
 ### Hard rule: motion-required deliverables
 
@@ -187,17 +186,17 @@ artifact wins.
 
 ## Runtime selection rules
 
-1. **Proposal stage** chooses `render_runtime` and logs the decision in
-   `decision_log` with category `render_runtime_selection`. It must consider
-   the decision matrix above and the actual availability of each runtime.
+1. **Proposal stage** preserves an authorized `render_runtime` or resolves a
+   missing choice under the canonical contract above. Record actual authority,
+   availability and rationale in `decision_log` as `render_runtime_selection`.
 2. **Preflight** reports which runtimes are available (see below). A
    runtime that is not available is not a valid proposal choice unless the
    user explicitly approves installing it.
 3. **Edit stage** carries `render_runtime` forward unchanged.
 4. **Compose stage** reads `edit_decisions.render_runtime` and routes via
    `video_compose` → `hyperframes_compose` (for HyperFrames) or the existing
-   Remotion path (for Remotion). Compose may not swap runtime without a new
-   `render_runtime_selection` decision.
+   Remotion path (for Remotion). Compose may not swap runtime without applicable
+   authorization and an appended `render_runtime_selection` decision.
 5. **Final review** records `render_runtime_used` and sets
    `runtime_swap_detected = true` if it differs from proposal.
 
@@ -442,7 +441,7 @@ the `deterministicFonts.ts` mapping table. Safe bets: `Outfit`,
 | Pipeline | Status |
 |----------|--------|
 | `animation` | Wave 1 — HyperFrames is a first-class option for motion-graphics-heavy briefs |
-| `animated-explainer` | Wave 1 — HyperFrames viable when the concept is HTML/GSAP-native; Remotion remains default for data-chart-heavy explainers |
+| `animated-explainer` | Wave 1 — HyperFrames viable when the concept is HTML/GSAP-native; Remotion fits the existing React data-chart stack |
 | `screen-demo` | Wave 1 — HyperFrames viable for synthetic product UI; `TerminalScene` (Remotion) remains preferred for terminal-specific demos |
 | `cinematic` | Wave 2 |
 | `hybrid` | Wave 2 |

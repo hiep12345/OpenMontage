@@ -28,9 +28,13 @@ Read [references/api-and-prompting.md](references/api-and-prompting.md) when cho
 | Full song, vocals, longer structure, image-conditioned score | `lyria-3-pro-preview` | Prompt-influenced duration up to roughly three minutes; currently $0.08/request |
 | Live, continuously steered instrumental performance | `lyria-realtime-exp` | Separate WebSocket workflow; do not route through `google_music` |
 
-The current OpenMontage `google_music` adapter is locked to `lyria-3-pro-preview`. It does not expose Clip, WAV response selection, multiple images, or RealTime controls. Surface that limitation rather than implying those options are available through the adapter.
-
-Do not change models silently. For a 30-second video, either obtain approval for Pro plus exact-duration mastering or use Clip through an explicitly supported path.
+The current `tools/audio/google_music.py` schema exposes `model` with `lyria-3.5`
+as the default and `lyria-3-pro-preview` as another supported value. Inspect its
+current enum and constraints before calling; do not silently replace an approved
+model. Clip and RealTime need a separately supported path. Model availability and
+listed historical prices above need current official/native verification before
+spend; unknown pricing is not zero. Reuse exact-scope music approval and preserve
+source, measured duration, listening evidence and production-master derivation.
 
 ## Build The Prompt
 

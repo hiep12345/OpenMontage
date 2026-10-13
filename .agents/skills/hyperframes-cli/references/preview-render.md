@@ -53,7 +53,7 @@ Validation runs before any server boots, so an invalid value exits cleanly witho
 
 ## render
 
-> Render only after the user has reviewed in `preview` and approved. Don't auto-render when the checks pass.
+> Render under the applicable project gates. A requested final video or recorded exact-scope render approval may already authorize rendering; do not demand a second confirmation. Passing checks alone does not grant missing authority. Publishing remains separately authorized.
 
 ```bash
 npx hyperframes render                                # standard MP4 from cwd

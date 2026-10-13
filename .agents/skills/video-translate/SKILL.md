@@ -1,7 +1,6 @@
 ---
 name: video-translate
-description: |
-  Translate and dub existing videos into multiple languages using HeyGen. Use when: (1) Translating a video into another language, (2) Dubbing video content with lip-sync, (3) Creating multi-language versions of existing videos, (4) Audio-only translation without lip-sync, (5) Working with HeyGen's /v2/video_translate endpoint.
+description: Use when HeyGen video translation is explicitly requested or selected by the approved OpenMontage workflow. Follow the selected adapter contract and existing provider, voice, source and spend approvals; generic media requests use the project router.
 allowed-tools: mcp__heygen__*
 metadata:
   openclaw:
@@ -329,41 +328,48 @@ const spanishVideo = await translateAndDownload(
 
 ## Batch Translation
 
-Translate to multiple languages in parallel:
+Translate only the approved language batch, bounded by provider rate and spend limits. Successful sibling job IDs must survive another submission failure:
 
 ```typescript
+import { appendFileSync } from "node:fs";
+
+// Fresh approved batch only. On resume read this ledger and reconcile accepted
+// IDs first; never re-submit the whole language list after one sibling fails.
 async function translateToMultipleLanguages(
   sourceVideoUrl: string,
-  targetLanguages: string[]
+  targetLanguages: string[],
+  ledgerPath: string // unique, task-owned durable JSONL file
 ): Promise<Record<string, string>> {
   const results: Record<string, string> = {};
-
-  const translatePromises = targetLanguages.map(async (lang) => {
+  const submissions = await Promise.allSettled(targetLanguages.map(async (lang) => {
     const translateId = await translateVideo({
       video_url: sourceVideoUrl,
       output_language: lang,
     });
-    return { lang, translateId };
-  });
-
-  const translationJobs = await Promise.all(translatePromises);
-
-  for (const job of translationJobs) {
+    // Persist each accepted sibling immediately, before waiting on the batch.
     try {
-      const videoUrl = await waitForTranslation(job.translateId);
-      results[job.lang] = videoUrl;
+      appendFileSync(ledgerPath, JSON.stringify({ lang, translateId }) + "\n",
+        { encoding: "utf8", flush: true }); // Node >=20.10; use durable store otherwise
     } catch (error) {
-      results[job.lang] = `error: ${error.message}`;
+      throw new Error(`Accepted ${lang} job ${translateId}; ledger failed: ${String(error)}`);
+    }
+    return { lang, translateId };
+  }));
+
+  for (const [index, submission] of submissions.entries()) {
+    if (submission.status === "rejected") {
+      results[targetLanguages[index]] = `reconcile: ${String(submission.reason)}`;
+      continue; // may have been accepted remotely; no automatic retry
+    }
+    const job = submission.value;
+    try {
+      results[job.lang] = await waitForTranslation(job.translateId);
+    } catch (error) {
+      results[job.lang] = `resume ${job.translateId}: ${String(error)}`;
     }
   }
-
   return results;
 }
-
-const translations = await translateToMultipleLanguages(
-  "https://example.com/original.mp4",
-  ["es-ES", "fr-FR", "de-DE", "ja-JP"]
-);
 ```
 
 ## Features

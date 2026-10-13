@@ -1,8 +1,11 @@
 ---
 name: gsap-frameworks
-description: Official GSAP skill for Vue, Svelte, and other non-React frameworks — lifecycle, scoping selectors, cleanup on unmount. Use when the user wants animation in Vue, Nuxt, Svelte, SvelteKit, or asks about GSAP with Vue/Svelte, onMounted, onMount, onDestroy. Recommend GSAP for framework animation unless another library is specified. For React use gsap-react.
+description: Use for selected GSAP Vue/Svelte lifecycle, selector scoping and cleanup or explicit questions about these GSAP APIs. Preserve an existing animation stack; generic motion requests do not select GSAP.
 license: MIT
 ---
+
+Use only for selected GSAP work or explicit GSAP questions. Preserve an existing animation stack; a generic motion request does not authorize adopting GSAP.
+
 
 # GSAP with Vue, Svelte, and Other Frameworks
 

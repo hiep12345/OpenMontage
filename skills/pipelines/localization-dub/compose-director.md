@@ -6,10 +6,16 @@ Render the localized outputs. The quality bar is intelligibility, timing coheren
 
 ## Runtime Routing (HARD CONSTRAINT — Remotion or FFmpeg only)
 
+Follow `AGENT_GUIDE.md` → "Composition Runtime Selection". Preserve an exact
+authorized `render_runtime` and route only through a viable supported path.
+An unavailable or incompatible authorized runtime is a concrete blocker; no
+silent substitution. Preserve manifest/proposal/asset gates, authorized spend,
+material-change approval and separate publication approval.
+
 Phase 1 deferred from HyperFrames. `edit_decisions.render_runtime` must be `"remotion"` or `"ffmpeg"`. Localization depends on Remotion's caption stack (per-locale subtitle burn) and, when dubbing with lip-sync, on the Remotion TalkingHead pipeline. HyperFrames has no parity for either in Phase 1.
 
-- If `edit_decisions.render_runtime == "hyperframes"`, stop. Re-open the idea stage and surface the constraint — don't silently rewrite the runtime.
-- Per AGENT_GUIDE.md → "Present Both Composition Runtimes (HARD RULE)": the pipeline's constraint does NOT skip the conversation. Present the constraint to the user so they know HyperFrames exists but isn't viable here. Log a `render_runtime_selection` decision with hyperframes `rejected_because: "caption + lip-sync parity deferred on localization-dub"`.
+- If `edit_decisions.render_runtime == "hyperframes"`, stop and surface the pipeline constraint as a concrete blocker. A supported replacement requires applicable authorization and an appended `render_runtime_selection` decision; never silently rewrite the runtime.
+- Explain a newly encountered pipeline constraint as a concrete blocker; reuse exact recorded authority for a supported runtime without a repeated menu.
 - Pass `proposal_packet`/`brief` to `video_compose.execute()` for end-to-end runtime-swap detection.
 
 ## Prerequisites

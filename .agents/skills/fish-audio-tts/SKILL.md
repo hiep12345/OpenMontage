@@ -90,10 +90,10 @@ The provider writes the audio to `output_path` and returns `data.output` plus th
 
 ## Recommended Workflow
 
-1. Generate a 10-15 second sample with the chosen `model` + `reference_id` before a full paid narration.
-2. Ask the user to approve voice naturalness, emotion, and pace.
+1. Reuse an approved voice sample for the same scope; otherwise, when required by the production gate, generate an authorized short sample with the chosen `model` + `reference_id` before a full paid narration.
+2. Obtain any outstanding voice approval for naturalness, emotion and pace; reuse recorded exact-scope approval.
 3. Generate the full narration only after approval.
-4. For batch/localization variants where cost matters, prototype on `s2.1-pro-free` (promo-window $0; non-commercial drafts only) and upgrade the final to `s2.1-pro`.
+4. The August 31, 2026 free promotion has expired. Do not select `s2.1-pro-free` or assume $0 access without current verified entitlement and authorization; retain the approved model for drafts and final output.
 
 ## Troubleshooting
 

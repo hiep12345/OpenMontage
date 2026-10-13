@@ -6,7 +6,7 @@ You are building ONE beat of a multi-beat video composition. This file tells you
 
 **Required (every beat):**
 
-1. **Load the `hyperframes` skill** — composition rules, data attributes, timeline contract, deterministic rendering. Read the whole skill.
+1. **Load the `hyperframes` skill** — composition rules, data attributes, timeline contract, deterministic rendering. Load the relevant technical contract and runtime reference.
 2. **[capabilities.md](capabilities.md)** — full inventory of HyperFrames capabilities (24 sections). Read the Table of Contents first, then deep-dive sections your beat needs.
 3. **The beat spec** the main agent gave you — concept, choreography, assets, brand values, timing.
 
@@ -14,23 +14,23 @@ You are building ONE beat of a multi-beat video composition. This file tells you
 
 | Resource                                                                              | What it covers                                                                                                                | Read when                                         |
 | ------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
-| [techniques.md](../../hyperframes/references/techniques.md)                           | 13 primitive animation techniques: SVG path drawing, Canvas 2D, CSS 3D, kinetic type, variable fonts, MotionPath, etc.        | Beat uses any of these techniques                 |
-| [text-effects.md](../../hyperframes/references/text-effects.md)                       | 24 named text animations from `pixel-point/animate-text` (separate skill — load via `/animate-text` for specs)                | Beat has text animation                           |
-| [html-in-canvas-patterns.md](../../hyperframes/references/html-in-canvas-patterns.md) | HTML-in-Canvas: iPhone/MacBook mockups, liquid glass, magnetic, portal, shatter, text cursor                                  | Beat uses device mockups or WebGL effects on HTML |
-| [transitions.md](../../hyperframes/references/transitions.md)                         | Shader transition API, HyperShader.init() pattern, all 14 WebGL shaders                                                       | Beat has shader transitions                       |
-| [transitions/](../../hyperframes/references/transitions/)                             | 14 CSS transition category files: push, scale, dissolve, blur, 3D flip, light leak, distortion, grid, mechanical, destruction | Beat uses CSS transitions                         |
-| [css-patterns.md](../../hyperframes/references/css-patterns.md)                       | Text markers: highlight sweeps, hand-drawn circles, burst lines, scribble, sketchout                                          | Beat uses text emphasis/markers                   |
-| [audio-reactive.md](../../hyperframes/references/audio-reactive.md)                   | Bass→scale, mid→shape, treble→glow mappings                                                                                   | Beat reacts to music/audio                        |
-| [captions.md](../../hyperframes/references/captions.md)                               | Per-word karaoke, tone-adaptive styling, positioning                                                                          | Beat includes captions                            |
-| [typography.md](../../hyperframes/references/typography.md)                           | Font hierarchy, variable fonts, responsive type scaling                                                                       | Beat has complex typography                       |
-| [motion-principles.md](../../hyperframes/references/motion-principles.md)             | Velocity matching, easing philosophy, motion continuity                                                                       | Beat needs polished motion design                 |
-| [dynamic-techniques.md](../../hyperframes/references/dynamic-techniques.md)           | Counter animations, data-driven visuals, dynamic content                                                                      | Beat has counters or data visualization           |
-| [video-composition.md](../../hyperframes/references/video-composition.md)             | Frame composition, color presence, scale, density rules                                                                       | General composition quality                       |
+| [techniques.md](../../hyperframes-animation/techniques.md)                           | 13 primitive animation techniques: SVG path drawing, Canvas 2D, CSS 3D, kinetic type, variable fonts, MotionPath, etc.        | Beat uses any of these techniques                 |
+| [rules-index.md](../../hyperframes-animation/rules-index.md) | Atomic motion recipes, including text reveals, counters and typography. | Select only recipes needed for the approved beat. |
+| [html-in-canvas-patterns.md](../../hyperframes-animation/adapters/html-in-canvas-patterns.md) | HTML-in-Canvas: iPhone/MacBook mockups, liquid glass, magnetic, portal, shatter, text cursor                                  | Beat uses device mockups or WebGL effects on HTML |
+| [transitions.md](../../hyperframes-animation/transitions/overview.md)                         | Shader transition API, HyperShader.init() pattern, all 14 WebGL shaders                                                       | Beat has shader transitions                       |
+| [transitions/](../../hyperframes-animation/transitions/)                             | 14 CSS transition category files: push, scale, dissolve, blur, 3D flip, light leak, distortion, grid, mechanical, destruction | Beat uses CSS transitions                         |
+| [css-marker-patterns.md](../../hyperframes-animation/rules/css-marker-patterns.md) | CSS and GSAP marker highlights, circles, bursts and scribbles. | Beat uses text emphasis or markers. |
+| [audio-reactive.md](../../hyperframes-creative/references/audio-reactive.md)                   | Bass→scale, mid→shape, treble→glow mappings                                                                                   | Beat reacts to music/audio                        |
+| [captions.md](../../hyperframes-media/references/captions/authoring.md)                               | Per-word karaoke, tone-adaptive styling, positioning                                                                          | Beat includes captions                            |
+| [typography.md](../../hyperframes-creative/references/typography.md)                           | Font hierarchy, variable fonts, responsive type scaling                                                                       | Beat has complex typography                       |
+| [motion-principles.md](../../hyperframes-creative/references/motion-principles.md)             | Velocity matching, easing philosophy, motion continuity                                                                       | Beat needs polished motion design                 |
+| [rules-index.md](../../hyperframes-animation/rules-index.md) | Counter, stat-bar and content-sequencing recipes. | Beat has data visualization or dynamic content. |
+| [video-composition.md](../../hyperframes-creative/references/video-composition.md)             | Frame composition, color presence, scale, density rules                                                                       | General composition quality                       |
 
 **Other skills you can load if needed:**
 
 - `/gsap` or `/gsap-core`, `/gsap-timeline`, `/gsap-plugins` — deeper GSAP reference
-- `/animate-text` — curated text animation catalog with exact JSON specs
+- A separately installed text-animation skill may supply additional recipes when selected; do not assume `/animate-text` exists.
 - `/hyperframes-registry` — if you need to install and wire registry blocks
 - `/hyperframes-contrast` — audit color contrast (WCAG)
 - `/lottie`, `/three`, `/waapi`, `/animejs`, `/css-animations` — if beat uses these engines
@@ -63,8 +63,9 @@ Save to the path the main agent specified (usually `compositions/beat-N-name.htm
     data-composition-id="beat-N-name"
     data-width="1920"
     data-height="1080"
-    style="width:1920px; height:1080px; position:relative; overflow:hidden; background:#YOUR_BG;"
+    style="width:1920px; height:1080px; position:relative; overflow:hidden;"
   >
+    <div style="position:absolute;inset:0;background:#YOUR_BG;"></div>
     <!-- your elements -->
   </div>
 
@@ -111,7 +112,7 @@ npx hyperframes snapshot . --frames 3
 
 After lint passes, snapshots are taken, and you've fixed every issue you saw — report back to the main agent with concrete observations. Not "0 errors, looks good." That phrasing is what got prior videos shipped with mismatched brand colors, missing logos, and headlines too small to read.
 
-**The main agent will OPEN your composition file and read it top-to-bottom** to cross-check against DESIGN.md and STORYBOARD.md — does the brand bg/accent hex actually appear in your CSS, are the captured assets the storyboard called for actually referenced, is the headline ≥80px, does the GSAP timeline cover the full beat duration. You cannot pass that check by claiming things you didn't do; the file is on disk, the truth is in the file.
+**The main agent will review relevant source and rendered states** to cross-check against DESIGN.md and STORYBOARD.md — does the brand bg/accent hex actually appear in your CSS, are the captured assets the storyboard called for actually referenced, is the headline readable at the target dimensions, does the GSAP timeline cover the full beat duration. You cannot pass that check by claiming things you didn't do; the file is on disk, the truth is in the file.
 
 So in your report, name the hex codes you used, the captured asset paths you placed, the headline `font-size`, and the GSAP timeline's last `tl.fromTo(...)` timestamp. Brief, concrete, true. If anything diverges from DESIGN.md or the storyboard, say so explicitly — the main agent can decide whether to accept the divergence or send you back to fix it. Surprises caught at this hand-off cost minutes; surprises caught at Step 6 cost iterations.
 

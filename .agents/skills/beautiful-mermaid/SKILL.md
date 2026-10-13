@@ -9,7 +9,7 @@ Render Mermaid diagrams as SVG and PNG images using the Beautiful Mermaid librar
 
 ## Dependencies
 
-This skill requires the `agent-browser` skill for PNG rendering. Load it before proceeding with PNG capture.
+Use installed Beautiful Mermaid dependencies and an available renderer. Set `SKILL_DIR` to the directory containing this loaded skill; resolve scripts from it.
 
 ## Supported Diagram Types
 
@@ -62,19 +62,19 @@ If the user provides a description rather than code, generate valid Mermaid synt
 Run the rendering script to produce an SVG file:
 
 ```bash
-bun run scripts/render.ts --code "graph TD; A-->B" --output diagram --theme default
+bun run "$SKILL_DIR/scripts/render.ts" --code "graph TD; A-->B" --output diagram --theme default
 ```
 
 Or from a file:
 
 ```bash
-bun run scripts/render.ts --input diagram.mmd --output diagram --theme tokyo-night
+bun run "$SKILL_DIR/scripts/render.ts" --input diagram.mmd --output diagram --theme tokyo-night
 ```
 
 Alternative runtimes:
 ```bash
-npx tsx scripts/render.ts --code "..." --output diagram
-deno run --allow-read --allow-write --allow-net scripts/render.ts --code "..." --output diagram
+npx tsx "$SKILL_DIR/scripts/render.ts" --code "..." --output diagram
+deno run --allow-read --allow-write --allow-net "$SKILL_DIR/scripts/render.ts" --code "..." --output diagram
 ```
 
 This produces `<output>.svg` in the current working directory.
@@ -84,37 +84,23 @@ This produces `<output>.svg` in the current working directory.
 Run the HTML wrapper script to prepare for screenshot:
 
 ```bash
-bun run scripts/create-html.ts --svg diagram.svg --output diagram.html
+bun run "$SKILL_DIR/scripts/create-html.ts" --svg diagram.svg --output diagram.html
 ```
 
 This creates a minimal HTML file that displays the SVG with proper padding and background.
 
-### Step 4: Capture High-Resolution PNG with agent-browser
+### Step 4: Capture PNG when requested
 
-Use the agent-browser CLI to capture a high-quality screenshot. Refer to the `agent-browser` skill for full CLI documentation.
+Use an available supported browser or SVG rasterizer. Open the owned HTML wrapper,
+wait for fonts/layout, capture at the requested dimensions and inspect the pixels.
+Do not assume an `agent-browser` skill or CLI is installed. If no renderer is
+available, deliver the SVG and report PNG as not tested/unavailable.
 
-```bash
-# Set 4K viewport for high-resolution capture
-agent-browser set viewport 3840 2160
 
-# Open the HTML wrapper
-agent-browser open "file://$(pwd)/diagram.html"
-
-# Wait for render to complete
-agent-browser wait 1000
-
-# Capture full-page screenshot
-agent-browser screenshot --full diagram.png
-
-# Close browser
-agent-browser close
-```
-
-For even higher resolution on complex diagrams, increase the viewport further or use the `--padding` option when creating the HTML wrapper to give the diagram more space.
 
 ### Step 5: Clean Up Intermediary Files
 
-After rendering, remove all intermediary files. Only the final `.svg` and `.png` should remain.
+After verification, remove only task-created disposable intermediary files; retain requested source and final formats.
 
 Files to clean up:
 - The HTML wrapper file (e.g., `diagram.html`)
@@ -129,7 +115,7 @@ If a temporary `.mmd` file was created, remove it as well.
 
 ## Output
 
-Both outputs are always produced:
+Produce the requested format(s):
 - **SVG**: Vector format, infinitely scalable, small file size
 - **PNG**: High-resolution raster, captured at 4K (3840×2160) viewport with minimum 1200px diagram width
 

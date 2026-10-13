@@ -10,17 +10,17 @@ Animation proposals have a unique dimension: **animation mode selection**. Unlik
 
 ## Runtime Selection (required field — `render_runtime`)
 
-Animation proposals must lock **both** a `renderer_family` (creative grammar) and a `render_runtime` (technical engine). These are separate concepts now that HyperFrames is a first-class runtime. Read `skills/meta/animation-runtime-selector.md` and `skills/core/hyperframes.md` for the decision matrix, and `AGENT_GUIDE.md` → "Present Both Composition Runtimes (HARD RULE)" for the governance contract.
+Animation proposals must lock **both** a `renderer_family` (creative grammar) and a `render_runtime` (technical engine). These are separate concepts now that HyperFrames is a first-class runtime. For unresolved choices or a concrete feasibility gap, read the relevant decision matrix in `skills/meta/animation-runtime-selector.md` or `skills/core/hyperframes.md`.
 
-**MANDATORY workflow — present both runtimes, don't silently default:**
-
-1. Query `video_compose.get_info()["render_engines"]`. If both `remotion` and `hyperframes` are `True`, proceed to step 2. If only one is available, go to step 4 with just that one.
-2. Present both runtimes to the user with brief-specific analysis:
-   - **Remotion** — one line on fit (e.g. "your brief uses data-chart and stat_card heavily, both already exist as React components"), one line on tradeoff (e.g. "React component authoring is more rigid than HTML/CSS for custom typographic motion").
-   - **HyperFrames** — one line on fit (e.g. "the kinetic-typography opener fits HTML + GSAP better than Remotion interpolation"), one line on tradeoff (e.g. "no word-level caption burn parity yet; no access to existing Remotion chart library").
-3. Recommend one with rationale tied to the brief's `delivery_promise`, the selected animation mode, and the reuse strategy from research.
-4. Wait for explicit user approval. Do NOT write `render_runtime` into `proposal_packet.production_plan` before approval.
-5. Log a `render_runtime_selection` decision in `decision_log` with BOTH runtimes in `options_considered`, the user's pick as `selected`, and the rationale as `reason`. If a runtime was unavailable, record it as rejected with `rejected_because: "runtime not available on this machine"`.
+Follow `AGENT_GUIDE.md` → "Composition Runtime Selection" as the canonical
+contract. Preserve an exact authorized `render_runtime`, including a new actionable
+brief with exact choices, without a runtime menu or repeat approval. When runtime
+choice is unresolved, compare Remotion and HyperFrames only when both are viable
+for this brief; record actual alternatives and constraint evidence in a
+`render_runtime_selection` decision. An unavailable or incompatible authorized
+runtime is a concrete blocker; do not substitute it silently. Preserve the
+manifest's proposal/asset approval gates, authorized spend, material-change
+approval and separate publication approval.
 
 Fit cheat-sheet for the recommendation (NOT an auto-decision):
 
@@ -34,8 +34,6 @@ Fit cheat-sheet for the recommendation (NOT an auto-decision):
 | Real 3D terrain, semantic regions, editable landmarks, free-viewpoint camera | HyperFrames + `threejs_world` |
 | Word-level/karaoke caption burn required | Remotion (HyperFrames caption parity deferred) |
 | Simple source-footage concat, no composition | ffmpeg |
-
-A `render_runtime_selection` decision with only one option considered when both were available is a CRITICAL reviewer finding. That's how the moat collapses into "everything looks like our chart stack."
 
 ## Prerequisites
 
@@ -145,8 +143,8 @@ Image generation:  {configured}/{total}
   ❌ {tool_name} ({provider}) — {install_instructions trimmed to one line}
 Video generation:  {configured}/{total}
   ...
-Composition runtimes:  {ffmpeg} / {remotion} / {hyperframes}
-  See AGENT_GUIDE.md > "Present Both Composition Runtimes (HARD RULE)".
+Composition runtime: {authorized runtime + availability, or unresolved viable alternatives}
+  See AGENT_GUIDE.md > "Composition Runtime Selection".
 Audio: {configured}/{total}
 Math/Diagram: {configured}/{total}
 ```
@@ -154,7 +152,7 @@ Math/Diagram: {configured}/{total}
 **Rules for this output:**
 - Every name, provider, cost, and install instruction comes from `provider_menu_summary()` or `provider_menu()`. Don't type them from memory — provider surfaces change between releases.
 - Never cite a cost that isn't live in the tool's `estimate_cost` or install metadata.
-- Composition runtimes are a separate section because the "Present Both" HARD RULE needs all three engines visible.
+- Report composition-runtime alternatives only for an unresolved choice or a relevant blocker; an exact authorized runtime needs its availability and fit verified.
 
 **Present this scan to the user.** Say: "Here's what I can see right now. Based on this, here are your animation approach options."
 

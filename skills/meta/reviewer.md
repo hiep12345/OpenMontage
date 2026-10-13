@@ -246,15 +246,15 @@ Run at **scene_plan** and **edit** stages. Prevents the "every video looks the s
 
 5. **Render runtime match** (edit and compose stages):
    - `render_runtime` in edit_decisions must match proposal_packet.production_plan.render_runtime
-   - If changed without a `render_runtime_selection` decision logged in decision_log → **CRITICAL**
+   - If changed without applicable authorization and an appended `render_runtime_selection` decision in decision_log → **CRITICAL**
    - At compose stage, `final_review.checks.promise_preservation.runtime_swap_detected` must be `false`. If `true` without an approved `render_runtime_selection` decision → **CRITICAL**
    - Runtime unavailable at compose time is not an excuse for silent swap — the correct behavior is to escalate, get approval, log a decision, then run.
 
-6. **Runtime selection presented both options** (proposal stage, MANDATORY):
-   - Query `video_compose.get_info()["render_engines"]`. If both `remotion` and `hyperframes` show `True`, the `render_runtime_selection` decision in `decision_log` MUST have BOTH runtimes in `options_considered`.
-   - A `render_runtime_selection` with only one runtime in `options_considered` when both were available on the machine → **CRITICAL**. The agent silently defaulted; the user was not presented the alternative. Re-open the proposal stage and present both.
-   - If only one runtime was available, `options_considered` must still list the unavailable one with `rejected_because: "runtime not available on this machine"` — otherwise the audit trail loses the fact that the choice was constrained, not discretionary.
-   - Per AGENT_GUIDE.md > "Present Both Composition Runtimes (HARD RULE)": the pipeline's suggested "default" runtime is NOT a license to skip the conversation with the user.
+6. **Runtime authority and unresolved choices** (planning, edit and compose):
+   - Apply `AGENT_GUIDE.md` → "Composition Runtime Selection". Preserve an exact authorized `render_runtime`, including a new actionable brief with exact choices; a single recorded option is valid when it reflects that authority or a real pipeline constraint. Do not reopen an authorized choice solely because another runtime is available.
+   - When runtime choice is unresolved and Remotion and HyperFrames are both viable for the brief, verify the `render_runtime_selection` decision records their comparison, rationale and resulting authority. Silently defaulting in this case → **CRITICAL**. Resolve the missing choice before dependent generation.
+   - Verify task-relevant availability evidence from `video_compose.get_info()["render_engines"]` and pipeline constraints. An unavailable or incompatible authorized runtime is a concrete blocker; silent substitution → **CRITICAL**. Record actual rejected alternatives when relevant; do not invent unavailable options or require a full menu for exact authorization.
+   - A `render_runtime_selection` log entry alone does not approve a material change. Preserve the manifest's proposal/asset approval gates, authorized spend, material-change approval and separate publication approval.
 
 ## Delivery Promise Review
 

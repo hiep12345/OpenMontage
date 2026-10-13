@@ -75,4 +75,4 @@ Use `hyperframes-cli` for command details
 - [ ] `npx hyperframes inspect` passes (0 errors)
 - [ ] Projects with sub-compositions: `npx hyperframes snapshot --at <midpoints>` and eyeball each frame
 - [ ] `npx hyperframes preview` for review (the user can edit anything in Studio's timeline)
-- [ ] `npx hyperframes render` only after the user approves
+- [ ] `npx hyperframes render` after applicable project gates are satisfied; reuse requested final-video or recorded exact-scope render authority

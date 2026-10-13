@@ -8,7 +8,7 @@ description: |
 
 # video-understand
 
-Understand video content locally using ffmpeg for frame extraction and Whisper for transcription. Fully offline, no API keys required.
+Understand video content locally using ffmpeg for frame extraction and Whisper for transcription. Offline execution requires FFmpeg, the Python dependencies and Whisper weights already installed. Missing weights/dependencies may require a separately authorized download; report the limitation for offline runs.
 
 ## Prerequisites
 
@@ -17,30 +17,32 @@ Understand video content locally using ffmpeg for frame extraction and Whisper f
 
 ## Commands
 
+Set `SKILL_DIR` to the absolute directory containing this loaded SKILL.md; do not resolve these scripts from the project cwd.
+
 ```bash
 # Scene detection + transcribe (default)
-python3 skills/video-understand/scripts/understand_video.py video.mp4
+python3 "$SKILL_DIR/scripts/understand_video.py" video.mp4
 
 # Keyframe extraction
-python3 skills/video-understand/scripts/understand_video.py video.mp4 -m keyframe
+python3 "$SKILL_DIR/scripts/understand_video.py" video.mp4 -m keyframe
 
 # Regular interval extraction
-python3 skills/video-understand/scripts/understand_video.py video.mp4 -m interval
+python3 "$SKILL_DIR/scripts/understand_video.py" video.mp4 -m interval
 
 # Limit frames extracted
-python3 skills/video-understand/scripts/understand_video.py video.mp4 --max-frames 10
+python3 "$SKILL_DIR/scripts/understand_video.py" video.mp4 --max-frames 10
 
 # Use a larger Whisper model
-python3 skills/video-understand/scripts/understand_video.py video.mp4 --whisper-model small
+python3 "$SKILL_DIR/scripts/understand_video.py" video.mp4 --whisper-model small
 
 # Frames only, skip transcription
-python3 skills/video-understand/scripts/understand_video.py video.mp4 --no-transcribe
+python3 "$SKILL_DIR/scripts/understand_video.py" video.mp4 --no-transcribe
 
 # Quiet mode (JSON only, no progress)
-python3 skills/video-understand/scripts/understand_video.py video.mp4 -q
+python3 "$SKILL_DIR/scripts/understand_video.py" video.mp4 -q
 
 # Output to file
-python3 skills/video-understand/scripts/understand_video.py video.mp4 -o result.json
+python3 "$SKILL_DIR/scripts/understand_video.py" video.mp4 -o result.json
 ```
 
 ## CLI Options
@@ -83,11 +85,11 @@ The script outputs JSON to stdout (or file with `-o`). See `references/output-fo
     {"start": 0.0, "end": 2.5, "text": "Hello and welcome..."}
   ],
   "text": "Full transcript...",
-  "note": "Use the Read tool to view frame images for visual understanding."
+  "note": "Use an available native image-inspection tool to view frame images for visual understanding."
 }
 ```
 
-Use the Read tool on frame image paths to visually inspect extracted frames.
+Use an available native image-inspection tool on frame image paths to visually inspect extracted frames.
 
 ## References
 

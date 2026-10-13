@@ -2,7 +2,7 @@
 
 `npx hyperframes tts` auto-detects a provider from env vars; explicit override via `--provider`.
 
-> **Run the Preflight first — no credential is not a green light to silently use the local voice.** Before generating a voiceover, complete the sign-in **Preflight** (see `../SKILL.md` → Preflight): run `npx hyperframes auth status`, recommend signing in, and **STOP for the user's choice** (sign in for HeyGen voices, or continue offline with local Kokoro). This applies to a one-off "generate a voiceover" request just as much as inside a full workflow.
+> Follow [selected-provider preflight](../SKILL.md). Reuse voice/provider approval; check access only for the selected route. Do not require unrelated signup, silently fall back, or auto-install a local model. Verify the installed CLI supports provider pinning before using it.
 
 ## Provider chain
 
@@ -10,10 +10,11 @@
 | ----- | ----------------- | ------------------------------------------- | ------------------------------------------- | ----------------------------------------- | -------------------- |
 | 1     | HeyGen (Starfish) | `$HEYGEN_API_KEY` / `~/.heygen/credentials` | UUIDs from `GET /v3/voices?engine=starfish` | **Yes** (`word_timestamps[]` in response) | mp3 → wav via ffmpeg |
 | 2     | ElevenLabs        | `$ELEVENLABS_API_KEY`                       | UUIDs from elevenlabs.io dashboard          | No                                        | mp3 → wav via ffmpeg |
-| 3     | Kokoro-82M        | always (local fallback)                     | `am_michael`, `af_heart`, … (54 voices)     | No                                        | wav direct           |
+| 3     | Kokoro-82M        | installed dependencies/model only                     | `am_michael`, `af_heart`, … (54 voices)     | No                                        | wav direct           |
 
 ```bash
-# Auto-detect (HeyGen if key set, else ElevenLabs, else Kokoro)
+# Auto-detection example: use only when every possible route is authorized;
+# otherwise pin a supported provider or use the selected registered adapter.
 npx hyperframes tts "Welcome to HyperFrames" -o narration.wav
 
 # Pin the provider explicitly
@@ -44,11 +45,11 @@ expired OAuth token it stops with a hint to run `npx hyperframes auth refresh`.
 export HEYGEN_API_KEY=...   # or put it in a project .env
 
 # Synthesize + capture word timestamps in one call (skips a Whisper pass)
-node skills/hyperframes-media/scripts/heygen-tts.mjs \
+node "$SKILL_DIR/scripts/heygen-tts.mjs" \
   "Welcome to HyperFrames." -o narration.wav --words narration.words.json
 
-node skills/hyperframes-media/scripts/heygen-tts.mjs ./script.txt -o narration.wav
-node skills/hyperframes-media/scripts/heygen-tts.mjs --list   # public starfish voices
+node "$SKILL_DIR/scripts/heygen-tts.mjs" ./script.txt -o narration.wav
+node "$SKILL_DIR/scripts/heygen-tts.mjs" --list   # public starfish voices
 ```
 
 - **Voice:** `--voice <id>` must be a **starfish** voice_id (`--list`, or `GET /v3/voices?engine=starfish`). v2-catalog ids are rejected with HTTP 400. Omit `--voice` (English) and it defaults to **Marcia** (`05f19352e8f74b0392a8f411eba40de1`, a fixed default so the choice is deterministic). Non-English with no `--voice` falls back to the first matching catalog voice.

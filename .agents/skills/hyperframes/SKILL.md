@@ -67,25 +67,19 @@ Routing needs to know **what the video is about** — its input and subject. If 
 - **A presentation / pitch deck / interactive deck** (discrete slides, navigation, presenter mode) → `/slideshow` — output is a navigable deck, not a rendered video. An explicit "slideshow" request proceeds directly; an adjacent trigger ("deck / slides / presentation / convert this page") makes `/slideshow` confirm it's a slideshow before authoring, and switch to the appropriate non-slideshow workflow if not.
 - **Length is a guide, not a gate** — intent picks the workflow; go to `/general-video` only when the piece is clearly longer than ~3 min, or is a static / loop / custom format.
 
-## If the matched workflow isn't installed
+## Missing workflows and versioned setup
 
-Once you've picked a workflow, check it's actually available to you. If the matched workflow skill isn't installed, don't fall back to guessing — tell the user to install it first:
+Check the chosen workflow exists before using it. If absent, use the existing
+approved project pipeline or describe the missing capability. Installing a new
+skill/runtime is a separate change; never install the full catalog to answer a task.
 
-- **Just this workflow:** `npx skills add heygen-com/hyperframes --skill <workflow-name>` (e.g. `--skill pr-to-video` — bare name, no leading `/`).
-- **All workflows at once:** `npx skills add heygen-com/hyperframes --all` (core + every workflow, skips the picker).
-
-After they run it, re-read the workflow's skill and continue.
-
-## Keeping skills current
-
-HyperFrames skills are versioned. `npx hyperframes init` checks the installed skills against the latest on GitHub and installs/refreshes the **full** set whenever anything is out of date or missing — so a freshly init'd project always has the complete, latest set (and re-running init on an up-to-date project is a no-op). The check is a quick GitHub round-trip; offline (or rate-limited) it falls back to installing after a short timeout, so init never hard-fails on a network hiccup. The creation workflows scaffold with `init`, so starting a new project always runs this check and pulls our latest skills from GitHub when they're stale. The `--skip-skills` flag is currently neutered (a temporary measure while the skills.sh registry catches up): passing it no longer skips the check, so every `init` checks GitHub. CI/tests opt out via the `HYPERFRAMES_SKIP_SKILLS=1` env var.
-
-If a task is behaving unexpectedly, or before a long build, confirm the installed skills are current:
-
-- **Check:** `npx hyperframes skills check` (add `--json` for a machine-readable verdict; exits non-zero when anything is outdated **or missing**).
-- **Update:** `npx hyperframes skills update` — pulls the full set to the latest, **installing any not yet present** (same as init's install step).
-
-The CLI also surfaces a one-line reminder when a `render` / `lint` / `validate` run detects stale skills.
+Use the project's installed/pinned HyperFrames CLI. Before `init`, inspect that
+version's help/source for a supported no-skill-update path (some versions expose
+`HYPERFRAMES_SKIP_SKILLS=1`). Set it for the invocation only after verification;
+`--skip-skills` is not reliable across versions. If no no-update route is supported,
+create a task-local minimal composition from the retained core reference or report
+setup blocked. Initialization must not refresh global or repository skills.
+Do not run `skills update`, `upgrade` or skill installers as a production preflight.
 
 ## Workflow details
 

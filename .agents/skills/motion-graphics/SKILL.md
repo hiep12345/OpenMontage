@@ -1,17 +1,6 @@
 ---
 name: motion-graphics
-description: >
-  Use when the user wants a short, design-led motion graphic where motion is the
-  message: kinetic typography, stat or number count-up, chart/data-viz hit,
-  logo sting, brand lockup, lower-third, callout, social overlay, animated
-  headline/tweet/news item, motion poster, or quick captured-page highlight.
-  Usually under 10s and up to ~30s, with no narration arc, voice-over, or
-  live-action subject. Can render to MP4 or transparent overlay. Not for longer,
-  multi-scene, narrated, or brand-reel pieces (use general-video), narrated
-  website videos (website-to-video), topic explainers
-  (faceless-explainer), product promos (product-launch-video), PR videos
-  (pr-to-video), or captions on existing footage (embedded-captions). When unsure whether it's a
-  quick motion-first piece or a longer / narrated treatment, see /hyperframes.
+description: Build a short unnarrated motion graphic when HyperFrames and this workflow are selected. Use for kinetic type, charts, logo stings or overlays; preserve approved runtime, source, brand and production gates.
 metadata:
   {
     "tags": "orchestrator, motion-graphics, kinetic-type, data-viz, logo-reveal, lower-thirds, news, tweet, webpage, asset-fusion, short-form, overlay, no-narration",
@@ -27,12 +16,12 @@ A short design-led motion graphic. **Asset-first**: decide the asset strategy an
 | Phase    | Execution                                                             | Primary artifact                                                 | Detailed flow                 |
 | -------- | --------------------------------------------------------------------- | ---------------------------------------------------------------- | ----------------------------- |
 | init     | Bash                                                                  | `hyperframes.json`                                               | Step 0                        |
-| plan     | subagent — **decide search?** + classify + asset strategy             | `shot-plan.json` (draft: category, `asset_needs` queries, brief) | `agents/director.md` (Part 1) |
+| plan     | direct work / optional worker — **decide search?** + classify + asset strategy             | `shot-plan.json` (draft: category, `asset_needs` queries, brief) | `agents/director.md` (Part 1) |
 | source ◇ | Bash — media-use resolve (**skip if `asset_needs` is empty**)         | `assets/` + `assets/index.md`                                    | `phases/source/guide.md`      |
-| design   | subagent — shot design around resolved assets                         | `shot-plan.json` (final: block(s) + layout + motion + positions) | `agents/director.md` (Part 2) |
-| build    | subagent — reuse-first composition                                    | `compositions/index.html`                                        | `agents/builder.md`           |
+| design   | direct work / optional worker — shot design around resolved assets                         | `shot-plan.json` (final: block(s) + layout + motion + positions) | `agents/director.md` (Part 2) |
+| build    | direct work / optional worker — reuse-first composition                                    | `compositions/index.html`                                        | `agents/builder.md`           |
 | render   | Bash — `hyperframes render` (MP4, or `--format webm/mov` for overlay) | `renders/video.mp4`                                              | Step 5                        |
-| verify   | Bash — `lint` / `inspect` -> repair subagent on failure               | (fixes in place)                                                 | `agents/finalize.md`          |
+| verify   | Bash — `lint` / `inspect` -> targeted repair on failure               | (fixes in place)                                                 | `agents/finalize.md`          |
 
 `◇ source` runs only when the chosen category declares assets. Pure code/text categories (e.g. `kinetic-type`, most `charts`/`stat`) have `asset_needs: []` and skip straight from plan to design.
 
@@ -63,7 +52,7 @@ Build order: one at a time, coverage-first (rough is fine). `kinetic-type` porte
 
 ## Prerequisites
 
-macOS Apple Silicon or Linux x64. System tools: `brew install node ffmpeg`. `npx hyperframes doctor` once. macOS GPU render: `export PRODUCER_BROWSER_GPU_MODE=hardware`.
+Use the installed runtime on the current supported host, including a verified Windows path. Check Node, FFmpeg and the pinned CLI with `doctor`; do not run macOS package commands on other hosts. Bash snippets need the equivalent shell syntax.
 
 Optional keys (local fallbacks if unset) — only needed by categories that source/generate assets via media-use:
 
@@ -86,13 +75,13 @@ mkdir -p "$(dirname "$PROJECT_DIR")"
 npx hyperframes init "$PROJECT_DIR" --non-interactive --example=blank
 ```
 
-`init` checks the installed skills against the latest on GitHub and updates the global set if any are out of date.
+Before init, follow the pinned no-skill-update contract in `../hyperframes/SKILL.md`; never refresh skills as a side effect.
 
 **Constraints:** never `hyperframes init` in the workspace root; never nest another `hyperframes/` inside `PROJECT_DIR`; every Bash command (master + subagents) is a `(cd "$PROJECT_DIR" && ...)` subshell — never bare `cd`.
 
-### Step 1 — Plan (subagent: Director Part 1)
+### Step 1 — Plan (Director Part 1)
 
-Dispatch one subagent. prompt = full `agents/director.md` + `## Dispatch context` (`SKILL_DIR` / `PROJECT_DIR` / the user's request / `Schema: <SKILL_DIR>/references/shot-plan-ir.md`). It must:
+Work directly, or delegate when useful and permitted under `../hyperframes-core/references/subagent-dispatch.md`. Context = relevant `agents/director.md` + `## Dispatch context` (`SKILL_DIR` / `PROJECT_DIR` / the user's request / `Schema: <SKILL_DIR>/references/shot-plan-ir.md`). It must:
 
 1. **Decide: does this need a search?** (the first fork)
    - **No** → pick a **form category** (kinetic-type / stat / charts / logo-reveal / lower-thirds); content is user-supplied; `asset_needs: []`.
@@ -110,15 +99,15 @@ If `shot-plan.json.asset_needs` is non-empty, resolve assets (search / generate 
 (cd "$PROJECT_DIR" && node <SKILL_DIR>/phases/source/resolve.mjs --plan ./shot-plan.json --out ./assets)
 ```
 
-Degrade gracefully: if a search/provider is unavailable, the category falls back to asset-free (note it in `context.log`).
+Degrade gracefully: if a selected source/provider is unavailable, report the limitation. Use asset-free design only if consistent with the approved brief; record any authorized change.
 
-### Step 3 — Design (subagent: Director Part 2)
+### Step 3 — Design (Director Part 2)
 
-Dispatch a subagent (prompt = `agents/director.md` Part 2 + dispatch context including the resolved `assets/index.md` if Step 2 ran + `catalog-map.md`). It designs the shot **around the available assets**: pick the catalog block(s) + the `hyperframes-animation` rules/blueprints, the layout, the motion, beats, and (for `asset-fusion`) the `element_positions` + eyedropper palette. Finalizes `shot-plan.json` (`content.block` + `content.customize` + per-category content).
+Work directly, or optionally delegate with context = `agents/director.md` Part 2 + dispatch context including the resolved `assets/index.md` if Step 2 ran + `catalog-map.md`. Design the shot **around the available assets**: pick the catalog block(s) + the `hyperframes-animation` rules/blueprints, the layout, the motion, beats, and (for `asset-fusion`) the `element_positions` + eyedropper palette. Finalizes `shot-plan.json` (`content.block` + `content.customize` + per-category content).
 
-### Step 4 — Build (subagent: Builder, reuse-first)
+### Step 4 — Build (Builder, reuse-first)
 
-Dispatch a subagent. prompt = full `agents/builder.md` + dispatch context (`shot-plan.json`, `catalog-map.md`, the category's `module.md`, `references/motion-vocabulary.md`, `references/builder-contract.md`). **Reuse-first**: `npx hyperframes add <block>` + customize in place; hand-author only gaps + the asset-fusion affordance. Output `compositions/index.html` honoring the HF contract (paused GSAP timeline on `window.__timelines`, `class="clip"` + stable ids, `tl.seek(0)`, deterministic).
+Work directly, or optionally delegate with context = relevant `agents/builder.md` + dispatch context (`shot-plan.json`, `catalog-map.md`, the category's `module.md`, `references/motion-vocabulary.md`, `references/builder-contract.md`). **Reuse-first**: `npx hyperframes add <block>` + customize in place; hand-author only gaps + the asset-fusion affordance. Output `compositions/index.html` honoring the HF contract (paused GSAP timeline on `window.__timelines`, `class="clip"` + stable ids, `tl.seek(0)`, deterministic).
 
 ### Step 5 — Render (Bash)
 
@@ -127,13 +116,13 @@ Dispatch a subagent. prompt = full `agents/builder.md` + dispatch context (`shot
 # transparent overlay variant: --format webm  (or mov)
 ```
 
-### Step 6 — Verify (Bash → repair subagent on failure)
+### Step 6 — Verify (Bash → targeted repair on failure)
 
 ```bash
 (cd "$PROJECT_DIR" && npx hyperframes lint . && npx hyperframes inspect .)
 ```
 
-exit 0 → done. On lint/inspect errors, dispatch the repair subagent (`agents/finalize.md`: snapshot QA + one in-place fix pass + re-render). Never change a fixed duration in repair.
+Passing checks are structural evidence. Inspect final rendered frames at relevant times, probe duration/audio and review playback as supported. On defects follow `agents/finalize.md` directly or with an allowed bounded worker; repair and recheck. Never change a fixed duration to hide a defect.
 
 ### Report + optional preview
 
@@ -153,7 +142,7 @@ Flags live in the `hyperframes-cli` skill (`references/preview-render.md`).
 | `shot-plan.json` has `asset_needs`, no `assets/`         | Step 2 (source)          |
 | `shot-plan.json` final, no `compositions/index.html`     | Step 3/4 (design+build)  |
 | `compositions/index.html` exists, no `renders/video.mp4` | Step 5 (render) + Step 6 |
-| `renders/video.mp4` exists                               | Report + stop            |
+| `renders/video.mp4` exists                               | Verify exact final media and prior evidence, then report |
 
 ## Design notes (maintainers — execution does not read this)
 

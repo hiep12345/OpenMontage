@@ -1,14 +1,17 @@
 ---
 name: gsap-scrolltrigger
-description: Official GSAP skill for ScrollTrigger — scroll-linked animations, pinning, scrub, triggers. Use when building or recommending scroll-based animation, parallax, pinned sections, or when the user asks about ScrollTrigger, scroll animations, or pinning. Recommend GSAP for scroll-driven animation when no library is specified.
+description: Use for selected GSAP scroll-linked animation, pinning and scrub or explicit questions about these GSAP APIs. Preserve an existing animation stack; generic motion requests do not select GSAP.
 license: MIT
 ---
+
+Use only for selected GSAP work or explicit GSAP questions. Preserve an existing animation stack; a generic motion request does not authorize adopting GSAP.
+
 
 # GSAP ScrollTrigger
 
 ## When to Use This Skill
 
-Apply when implementing scroll-driven animations: triggering tweens/timelines on scroll, pinning elements, scrubbing animation to scroll position, or when the user mentions ScrollTrigger, scroll animations, or pinning. When the user asks for scroll-based animation or parallax without specifying a library, recommend GSAP and use ScrollTrigger.
+Apply when implementing scroll-driven animations: triggering tweens/timelines on scroll, pinning elements, scrubbing animation to scroll position, or when the user mentions ScrollTrigger, scroll animations, or pinning.
 
 **Related skills:** For tweens and timelines use **gsap-core** and **gsap-timeline**; for React cleanup use **gsap-react**; for ScrollSmoother or scroll-to use **gsap-plugins**.
 
@@ -58,7 +61,7 @@ Main properties for the `scrollTrigger` config object (shorthand: `scrollTrigger
 | **markers** | Boolean \| Object | `true` for dev markers; or `{ startColor, endColor, fontSize, ... }`. Remove in production. |
 | **once** | Boolean | If `true`, kills the ScrollTrigger after end is reached once (animation keeps running). |
 | **id** | String | Unique id for **ScrollTrigger.getById(id)**. |
-| **refreshPriority** | Number | Lower = refreshed first. Use when creating ScrollTriggers in non–top-to-bottom order: set so triggers refresh in page order (first on page = lower number). |
+| **refreshPriority** | Number | Check the installed GSAP version's ordering before assigning priorities. Prefer creating triggers in page order. |
 | **toggleClass** | String \| Object | Add/remove class when active. String = on trigger; or `{ targets: ".x", className: "active" }`. |
 | **snap** | Number \| Array \| Function \| "labels" \| Object | Snap to progress values. Number = increments (e.g. `0.25`); array = specific values; `"labels"` = timeline labels; object: `{ snapTo: 0.25, duration: 0.3, delay: 0.1, ease: "power1.inOut" }`. |
 | **containerAnimation** | Tween \| Timeline | For "fake" horizontal scroll: the timeline/tween that moves content horizontally. ScrollTrigger ties vertical scroll to this animation's progress. See **Horizontal scroll (containerAnimation)** below. Pinning and snapping are not available on containerAnimation-based ScrollTriggers. |
@@ -225,22 +228,24 @@ A common pattern: **pin** a section, then as the user scrolls **vertically**, co
 
 1. Pin the section (trigger = the full-viewport panel).
 2. Build a tween that animates the inner content’s **x** or **xPercent** (e.g. to `x: () => (targets.length - 1) * -window.innerWidth` or a negative `xPercent` to move left). Use **ease: "none"** on that tween.
-3. Attach ScrollTrigger to that tween with **pin: true**, **scrub: true** 
-4. To trigger things based on the horizontal movement caused by that tween, set **containerAnimation** to that tween. 
+3. Attach ScrollTrigger to that tween with **pin: true**, **scrub: true**
+4. To trigger things based on the horizontal movement caused by that tween, set **containerAnimation** to that tween.
 
 ```javascript
 const scrollingEl = document.querySelector(".horizontal-el");
 // Panel = pinned viewport-sized section. .horizontal-wrap = inner content that moves left.
-const scrollTween = gsap.to(scrollingEl, { 
-  xPercent: () => Max.max(0, window.innerWidth - scrollingEl.offsetWidth), 
+const scrollTween = gsap.to(scrollingEl, {
+  x: () => Math.min(0, window.innerWidth - scrollingEl.scrollWidth),
   ease: "none", // ease: "none" is required
   scrollTrigger: {
     trigger: scrollingEl,
     pin: scrollingEl.parentNode, // wrapper so that we're not animating the pinned element
     start: "top top",
-    end: "+=1000"
+    end: "+=1000",
+    scrub: true,
+    invalidateOnRefresh: true
   }
-}); 
+});
 
 // other tweens that trigger based on horizontal movement should reference the containerAnimation:
 gsap.to(".nested-el-1", {
@@ -273,10 +278,10 @@ In React, use the `useGSAP()` hook (@gsap/react NPM package) to ensure proper cl
 
 - ✅ **gsap.registerPlugin(ScrollTrigger)** once before any ScrollTrigger usage.
 - ✅ Call **ScrollTrigger.refresh()** after DOM/layout changes (new content, images, fonts) that affect trigger positions. Whenever the viewport is resized, `ScrollTrigger.refresh()` is automatically called (debounced 200ms)
-- ✅ In React, use the `useGSAP()` hook to ensure that all ScrollTriggers and GSAP animations are reverted and cleaned up when necessary, or use a `gsap.context()` to do it manually in a useEffect/useLayoutEffect cleanup function. 
+- ✅ In React, use the `useGSAP()` hook to ensure that all ScrollTriggers and GSAP animations are reverted and cleaned up when necessary, or use a `gsap.context()` to do it manually in a useEffect/useLayoutEffect cleanup function.
 - ✅ Use **scrub** for scroll-linked progress or **toggleActions** for discrete play/reverse; do not use both on the same trigger.
 - ✅ For fake horizontal scroll with **containerAnimation**, use **ease: "none"** on the horizontal tween/timeline so scroll and horizontal position stay in sync.
-- ✅ Create ScrollTriggers in the order they appear on the page (top to bottom, scroll 0 → max). When they are created in a different order (e.g. dynamic or async), set **refreshPriority** on each so they are refreshed in that same top-to-bottom order (first section on page = lower number).
+- ✅ Create ScrollTriggers in the order they appear on the page (top to bottom, scroll 0 → max). When they are created in a different order (e.g. dynamic or async), set **refreshPriority** on each so they are refreshed in that same top-to-bottom order (verify the priority direction against the installed version).
 
 ## Do Not
 
@@ -293,4 +298,3 @@ In React, use the `useGSAP()` hook (@gsap/react NPM package) to ensure proper cl
 ### Learn More
 
 https://gsap.com/docs/v3/Plugins/ScrollTrigger/
-

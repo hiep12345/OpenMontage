@@ -6,11 +6,23 @@ Use this pipeline when the source is a podcast episode, either audio-only or vid
 
 Your first responsibility is to decide what is feasible from the source that actually exists.
 
-## Runtime Selection (MANDATORY — present the constraint, don't silently pick)
+## Runtime Selection (`render_runtime` and pipeline constraints)
 
-Lock `render_runtime = "remotion"` (audiograms and composed outputs) or `"ffmpeg"` (pure-audio-led clip exports). **HyperFrames is NOT a valid runtime on this pipeline in Phase 1** — podcast outputs lean on Remotion's word-level caption stack, which has no HyperFrames parity yet.
+The supported plan uses `render_runtime = "remotion"` (audiograms and composed outputs) or `"ffmpeg"` (pure-audio-led clip exports). **HyperFrames is NOT a valid runtime on this pipeline in Phase 1** — podcast outputs lean on Remotion's word-level caption stack, which has no HyperFrames parity yet.
 
-Per AGENT_GUIDE.md → "Present Both Composition Runtimes (HARD RULE)": surface the constraint to the user — "HyperFrames is available on your machine, but podcast-repurpose depends on Remotion caption burn, so remotion is the only viable choice here". Record a `render_runtime_selection` decision with hyperframes `rejected_because: "caption-burn parity deferred on podcast-repurpose"`.
+Follow `AGENT_GUIDE.md` → "Composition Runtime Selection" as the canonical
+contract. Preserve an exact authorized `render_runtime`, including a new actionable
+brief with exact choices, without a runtime menu or repeat approval. When runtime
+choice is unresolved, compare Remotion and HyperFrames only when both are viable
+for this brief; record actual alternatives and constraint evidence in a
+`render_runtime_selection` decision. An unavailable or incompatible authorized
+runtime is a concrete blocker; do not substitute it silently. Preserve the
+manifest's proposal/asset approval gates, authorized spend, material-change
+approval and separate publication approval.
+
+Explain the constraint when it affects this request; do not claim HyperFrames is
+available without evidence or request repeat approval for an already authorized
+supported runtime.
 
 ## Reference Inputs
 

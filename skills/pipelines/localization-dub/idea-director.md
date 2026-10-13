@@ -6,11 +6,23 @@ Use this pipeline when the user has a source video and wants translated delivera
 
 Your first responsibility is to define what kind of localization is actually required, because subtitle-only, dubbed-audio, and lip-synced translation are different jobs.
 
-## Runtime Selection (MANDATORY — present the constraint, don't silently pick)
+## Runtime Selection (`render_runtime` and pipeline constraints)
 
-Lock `render_runtime = "remotion"` (composed deliverables with per-locale caption burn / lip-sync) or `"ffmpeg"` (pure subtitle-burn over source with no composition). **HyperFrames is NOT a valid runtime on this pipeline in Phase 1** — localization depends on Remotion's caption stack and, for dubbed-with-lip-sync, on the Remotion TalkingHead pipeline.
+The supported plan uses `render_runtime = "remotion"` (composed deliverables with per-locale caption burn / lip-sync) or `"ffmpeg"` (pure subtitle-burn over source with no composition). **HyperFrames is NOT a valid runtime on this pipeline in Phase 1** — localization depends on Remotion's caption stack and, for dubbed-with-lip-sync, on the Remotion TalkingHead pipeline.
 
-Per AGENT_GUIDE.md → "Present Both Composition Runtimes (HARD RULE)": do NOT silently default to remotion. Tell the user: "HyperFrames is available, but localization-dub depends on Remotion caption + TalkingHead parity that isn't there yet in Phase 1 — remotion is the only viable choice". Record a `render_runtime_selection` decision with hyperframes `rejected_because: "caption + lip-sync parity deferred on localization-dub"`.
+Follow `AGENT_GUIDE.md` → "Composition Runtime Selection" as the canonical
+contract. Preserve an exact authorized `render_runtime`, including a new actionable
+brief with exact choices, without a runtime menu or repeat approval. When runtime
+choice is unresolved, compare Remotion and HyperFrames only when both are viable
+for this brief; record actual alternatives and constraint evidence in a
+`render_runtime_selection` decision. An unavailable or incompatible authorized
+runtime is a concrete blocker; do not substitute it silently. Preserve the
+manifest's proposal/asset approval gates, authorized spend, material-change
+approval and separate publication approval.
+
+Explain the constraint when it affects this request; do not claim HyperFrames is
+available without evidence or request repeat approval for an already authorized
+supported runtime.
 
 ## Reference Inputs
 

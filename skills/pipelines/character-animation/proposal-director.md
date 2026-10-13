@@ -24,7 +24,7 @@ Each option must include:
 
 Read `skills/meta/animation-runtime-selector.md` before recommending a runtime.
 
-When both Remotion and HyperFrames are available:
+Use this fit guide when runtime choice is unresolved:
 
 - Remotion: best when the final composition needs deterministic React-rendered
   video, captions, audio, scene JSON, and final MP4 governance.
@@ -33,10 +33,15 @@ When both Remotion and HyperFrames are available:
 - FFmpeg: post-processing only. Do not pick FFmpeg as the primary runtime for
   character acting.
 
-Present both Remotion and HyperFrames to the user before recommending one.
-Record the alternatives considered in the decision log as
-`render_runtime_selection`, including why `hyperframes` was accepted or rejected.
-Wait for user approval before locking `render_runtime`.
+Follow `AGENT_GUIDE.md` → "Composition Runtime Selection" as the canonical
+contract. Preserve an exact authorized `render_runtime`, including a new actionable
+brief with exact choices, without a runtime menu or repeat approval. When runtime
+choice is unresolved, compare Remotion and HyperFrames only when both are viable
+for this brief; record actual alternatives and constraint evidence in a
+`render_runtime_selection` decision. An unavailable or incompatible authorized
+runtime is a concrete blocker; do not substitute it silently. Preserve the
+manifest's proposal/asset approval gates, authorized spend, material-change
+approval and separate publication approval.
 
 ## Sample-First Rule
 

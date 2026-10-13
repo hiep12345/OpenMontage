@@ -1,6 +1,6 @@
 ---
 name: doubao-tts
-description: Generate Mandarin and multilingual narration with Volcengine Doubao Speech 2.0. Use when creating Chinese voiceovers, when the user prefers Doubao/Volcengine/火山引擎/豆包 TTS, or when narration needs character-level timestamp metadata for subtitles.
+description: Use when Doubao speech synthesis is explicitly requested or selected by the approved OpenMontage workflow. Follow the selected adapter contract and existing provider, voice, source and spend approvals; generic media requests use the project router.
 ---
 
 # Doubao TTS
@@ -64,9 +64,9 @@ The provider writes:
 
 ## Recommended Workflow
 
-1. Generate a 10-15 second sample before a full paid narration.
-2. Ask the user to approve voice naturalness, accent, and speed.
-3. Generate the full narration only after approval.
+1. Reuse an approved voice sample for the same scope; otherwise, when required by the production gate, generate an authorized short sample before a full paid narration.
+2. If the required voice approval is still outstanding, obtain it for naturalness, accent and speed. Reuse existing exact-scope approval.
+3. Generate full narration under the recorded voice/scope and authorized spend once the applicable approval is satisfied.
 4. Keep the query JSON. It is the source of truth for subtitle timing.
 5. Build captions from `sentences[].words[]`, not from estimated text length.
 6. Group captions by Chinese semantic phrases before applying timestamps. Do not split only by fixed character count; it can break phrases like "在不押单个公司的情况下" or "可能会被慢慢稀释" and hurt comprehension.

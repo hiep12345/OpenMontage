@@ -521,7 +521,7 @@ simulation.on("tick", () => {
     .attr("y1", d => d.source.y)
     .attr("x2", d => d.target.x)
     .attr("y2", d => d.target.y);
-  
+
   node
     .attr("cx", d => d.x)
     .attr("cy", d => d.y);
@@ -567,7 +567,7 @@ circles
     d3.select(this).attr("opacity", 1);
     tooltip
       .style("visibility", "visible")
-      .html(`<strong>${d.label}</strong><br/>Value: ${d.value}`);
+      .text(`${d.label} — Value: ${d.value}`); // Treat dataset strings as text, never HTML.
   })
   .on("mousemove", function(event) {
     tooltip

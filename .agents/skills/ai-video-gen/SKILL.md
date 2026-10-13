@@ -1,7 +1,6 @@
 ---
 name: ai-video-gen
-description: |
-  Generate AI videos from text prompts using multiple provider gateways. Use when: (1) Generating videos from text descriptions, (2) Creating AI-generated video clips for content production, (3) Image-to-video generation with a reference image, (4) Choosing between video generation providers (VEO, Kling, Sora, Runway, Seedance, MiniMax, Gemini Omni). Supports gateways: HeyGen API, fal.ai API, Kling official direct API, and the Gemini API (Gemini Omni Flash).
+description: Select or use an approved AI video generation adapter in OpenMontage. Use for provider comparison or selected generated-clip work; preserve exact provider/model/runtime decisions and route generic video requests through the project pipeline.
 allowed-tools: mcp__heygen__*
 metadata:
   openclaw:
@@ -25,11 +24,15 @@ Generate AI videos from text prompts. Supports multiple providers via four API p
 | **Kling Official** | `KLING_API_KEY` | Kling official Classic, Turbo, and basic Omni video | `kling_official_video` |
 | **Gemini API** | `GEMINI_API_KEY` / `GOOGLE_API_KEY` | Gemini Omni Flash (generation + conversational editing) | `gemini_omni_video` |
 
-**Iterative editing — Gemini Omni.** When the brief calls for *refining an existing clip* (add/remove objects, restyle, change lighting or on-screen text) rather than regenerating, Gemini Omni Flash is the only provider in the fleet with stateful multi-turn editing. See Layer 3 `gemini-omni` for the authoritative prompting guide (reference-image tags, timecode syntax, edit-prompt rules) before writing any prompt for it.
+**Iterative editing — Gemini Omni.** When the brief calls for *refining an existing clip* (add/remove objects, restyle, change lighting or on-screen text) rather than regenerating, inspect the selected adapter for supported stateful editing. Gemini Omni is one route to evaluate when selection is open. See Layer 3 `gemini-omni` for the authoritative prompting guide (reference-image tags, timecode syntax, edit-prompt rules) before writing any prompt for it.
 
-**Preferred premium default — Seedance 2.0.** When any premium gateway is configured (`FAL_KEY` → `seedance_video`, or HeyGen's Video Agent / Avatar Shots path), Seedance 2.0 is the preferred default for cinematic, trailer, and high-fidelity clip work. It is the only model in the fleet with **single-pass native synchronized audio, multi-shot generation, director-level camera control, and lip-sync from quoted dialogue**, and it ranks #1 on Artificial Analysis Elo as of early 2026. Switch off it only when the user has a specific reason (budget, provider preference, stylistic fit like VEO for photoreal landscape or Kling for specific anime look). See Layer 3 `seedance-2-0` for the authoritative prompting and parameter guide.
-
-**IMPORTANT:** Always use `video_selector` instead of calling provider tools directly. The selector handles availability checks, cost comparison, and automatic fallback, and its scoring engine already biases toward Seedance 2.0 for cinematic intent.
+Use the current registry contract to compare supported routes only when selection
+is still open. Configuration alone does not authorize a paid call. Preserve the
+approved provider, gateway and model. `video_selector` is useful for an authorized
+open selection; inspect its fallback behavior before use. For an exact approved
+route use that registered adapter, without silent fallback or premium substitution.
+Provider capabilities, model IDs, prices and rankings need a current native/official
+check when used; the endpoint examples below are conditional references.
 
 ## Authentication
 
@@ -55,7 +58,7 @@ curl -X POST "https://api.heygen.com/v1/workflows/executions" \
 
 1. Call `POST /v1/workflows/executions` with `workflow_type: "GenerateVideoNode"` and your prompt
 2. Receive a `execution_id` in the response
-3. Poll `GET /v1/workflows/executions/{id}` every 10 seconds until status is `completed`
+3. Persist the accepted execution ID before waiting. Poll with a finite deadline and HTTP timeout; stop on failed/cancelled terminal states. On timeout, reconcile the same job before any resubmission.
 4. Use the returned `video_url` from the output
 
 ## Execute Video Generation

@@ -9,12 +9,12 @@ Everything runs through `npx hyperframes` unless project instructions specify a 
 
 ## Workflow
 
-1. **Scaffold** — `npx hyperframes init my-video` (or `capture` from a URL). `init` also checks the installed skills against the latest on GitHub and updates the global set if any are out of date. The `--skip-skills` flag is currently neutered (temporary, while the skills.sh registry catches up), so every `init` runs this check and pulls our latest skills regardless.
+1. **Scaffold** — Use the installed/pinned CLI and the no-update initialization contract in `../hyperframes/SKILL.md`. Preserve existing projects; do not refresh skills as an init side effect.
 2. **Write** — author HTML composition (see the `hyperframes-core` skill)
 3. **Lint** — `npx hyperframes lint`
 4. **Validate** — `npx hyperframes validate` (runtime errors + contrast)
 5. **Visual inspect** — `npx hyperframes inspect`
-6. **Preview** — `npx hyperframes preview` opens **Studio**, the timeline editor where the user can manually edit anything (not just watch). Review there, then ask before rendering.
+6. **Preview** — `npx hyperframes preview` opens **Studio**, the timeline editor where the user can manually edit anything (not just watch). Review there; render when the requested deliverable and applicable project gates already authorize it. Ask only for an outstanding gate.
 7. **Render** — pick the variant:
    - Iterate: `npx hyperframes render --quality draft`
    - Deliver: `npx hyperframes render --quality high --output out.mp4`
@@ -65,7 +65,7 @@ npx hyperframes lambda render ./my-project --width 1920 --height 1080 --wait
 npx hyperframes lambda destroy                                            # tear down (S3 bucket is retained)
 ```
 
-Use Lambda when a render is too long / too large for one host (multi-minute videos, 4K, large parallel batches) and you have AWS credentials configured. For dev-loop iteration stay on local `render`.
+Use Lambda when a render is too long / too large for one host (multi-minute videos, 4K, large parallel batches) and cloud infrastructure, uploads and cost are explicitly authorized. Credentials alone do not authorize deployment. For dev-loop iteration stay on local `render`.
 
 See `references/lambda.md` for prerequisites, all 6 subcommands (`deploy`, `sites create`, `render`, `progress`, `destroy`, `policies`), IAM policy validation, state files, and cost / cleanup rules.
 

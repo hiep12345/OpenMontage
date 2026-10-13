@@ -1,6 +1,6 @@
 # Idea Director - Screen Demo Pipeline
 
-## Runtime Selection (MANDATORY — present all viable runtimes)
+## Runtime Selection (`render_runtime` and production mode)
 
 Lock `render_runtime` at the idea stage alongside the production mode. Which runtimes are viable depends on the mode:
 
@@ -8,9 +8,20 @@ Lock `render_runtime` at the idea stage alongside the production mode. Which run
 |-----------------|-----------------|
 | `real_capture` (actual screen recording) | `remotion` (preferred — mix capture with overlays), `ffmpeg` (pure concat/trim) |
 | `synthetic_terminal` (Remotion `TerminalScene`) | `remotion` only |
-| `synthetic_ui` (custom HTML UI demo) | `remotion` OR `hyperframes` — real choice, present both |
+| `synthetic_ui` (custom HTML UI demo) | `remotion` OR `hyperframes` — compare when choice is unresolved |
 
-Per AGENT_GUIDE.md → "Present Both Composition Runtimes (HARD RULE)": when the mode allows multiple runtimes AND both are available on the machine (check `video_compose.get_info()["render_engines"]`), present both to the user with brief-specific analysis, recommend one, wait for approval. Do NOT silently default. When the mode constrains the choice (e.g. `synthetic_terminal` is Remotion-only), tell the user the constraint explicitly rather than silently locking remotion. Record every choice in `decision_log` under `render_runtime_selection` with all considered options.
+Follow `AGENT_GUIDE.md` → "Composition Runtime Selection" as the canonical
+contract. Preserve an exact authorized `render_runtime`, including a new actionable
+brief with exact choices, without a runtime menu or repeat approval. When runtime
+choice is unresolved, compare Remotion and HyperFrames only when both are viable
+for this brief; record actual alternatives and constraint evidence in a
+`render_runtime_selection` decision. An unavailable or incompatible authorized
+runtime is a concrete blocker; do not substitute it silently. Preserve the
+manifest's proposal/asset approval gates, authorized spend, material-change
+approval and separate publication approval.
+
+For `synthetic_terminal`, explain the Remotion-only constraint if it affects the
+request. Availability alone does not make another runtime viable for the mode.
 
 ## When To Use
 

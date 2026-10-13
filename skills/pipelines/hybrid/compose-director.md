@@ -6,6 +6,12 @@ Render the hybrid project so source media, support graphics, and audio all remai
 
 ## Runtime Routing (MANDATORY first step)
 
+Follow `AGENT_GUIDE.md` → "Composition Runtime Selection". Preserve an exact
+authorized `render_runtime` and route only through a viable supported path.
+An unavailable or incompatible authorized runtime is a concrete blocker; no
+silent substitution. Preserve manifest/proposal/asset gates, authorized spend,
+material-change approval and separate publication approval.
+
 Read `edit_decisions.render_runtime`. Hybrid work typically sticks with Remotion because source footage + React support overlays compose cleanly in one pass:
 
 - **`render_runtime="remotion"`** — default. Source footage via `<OffthreadVideo>`, support graphics as React components, one render.

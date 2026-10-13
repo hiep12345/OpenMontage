@@ -1,6 +1,6 @@
 ---
 name: hyperframes-animation
-description: "All animation knowledge for HyperFrames — atomic motion rules, multi-phase scene blueprints, scene transitions, broader motion-design techniques, AND the seven runtime adapters (GSAP default, plus Lottie, Three.js, Anime.js, CSS keyframes, Web Animations API, TypeGPU). Use for any motion or animation task: pick 2-4 rules and compose, or load a blueprint, or look up runtime-specific API (e.g. GSAP eases / Lottie player / Three.js mixer). HyperFrames-native: single paused timeline, seek-safe, deterministic."
+description: Animation recipes and deterministic runtime adapters for an explicitly selected HyperFrames composition. Load only the chosen motion/runtime reference; preserve the approved animation stack and design.
 ---
 
 # HyperFrames Animation
@@ -8,6 +8,8 @@ description: "All animation knowledge for HyperFrames — atomic motion rules, m
 All motion knowledge in one skill: **rules** (atomic recipes), **blueprints** (multi-phase scene templates), **transitions** (scene-to-scene), **techniques** (broader motion-design patterns), and **adapters** (per-runtime APIs).
 
 For the composition contract (data attributes, sub-compositions, determinism) see `hyperframes-core`.
+
+Resolve `SKILL_DIR` to this loaded skill directory before running its scripts.
 
 ## Default: compose atomic rules
 
@@ -69,7 +71,7 @@ Animation-craft additions on top of core's contract:
 ## Scripts
 
 ```bash
-node skills/hyperframes-animation/scripts/animation-map.mjs <composition-dir> \
+node "$SKILL_DIR/scripts/animation-map.mjs" <composition-dir> \
   --out <composition-dir>/.hyperframes/anim-map
 ```
 

@@ -12,7 +12,7 @@ license: MIT
 
 ## Why this exists
 
-v3 of the OpenMontage showcase tried to use Windows-MCP + `screen_recorder` to drive a Git-Bash window for the install walkthrough. It stalled on window positioning, focus races, and taskbar privacy concerns. We pivoted to **pure Remotion rendering** — a React component named `TerminalScene` that draws a fake terminal and types commands character-by-character. The output is visually indistinguishable from a real screen recording (same traffic-light window chrome, blinking cursor, scrolling output) but deterministic, privacy-safe, pixel-perfect at 1080p, and pace-controllable to the frame.
+v3 of the OpenMontage showcase tried to use Windows-MCP + `screen_recorder` to drive a Git-Bash window for the install walkthrough. It stalled on window positioning, focus races, and taskbar privacy concerns. We pivoted to **pure Remotion rendering** — a React component named `TerminalScene` that draws a fake terminal and types commands character-by-character. Label the result as a synthetic demonstration. The output imitates a real screen recording (same traffic-light window chrome, blinking cursor, scrolling output) but deterministic, privacy-safe, pixel-perfect at 1080p, and pace-controllable to the frame.
 
 That component + pattern is the capability this skill makes discoverable.
 
@@ -140,7 +140,7 @@ See `lib/verify_scene_pacing.py` for a reusable version of this script.
 
 ## `ProviderChip` (companion component)
 
-The `.agents/skills/synthetic-screen-recording` pattern also owns `ProviderChip` — a rotating badge overlay that cycles through a list of provider names at a fixed cadence. Used in the v3 showcase to cycle through all 11 AI video-gen providers during the "generated motion" section.
+The `.agents/skills/synthetic-screen-recording` pattern also owns `ProviderChip` — a rotating badge overlay that cycles through a list of provider names at a fixed cadence. A historical showcase used a rotating list, but that list is not provenance. Production/output badges must name only providers evidenced for the shown asset; a general capability showcase must be labelled as such.
 
 ```python
 overlays.append({
