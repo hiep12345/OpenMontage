@@ -58,7 +58,7 @@ print('Remotion note:', info.get('remotion_note'))
 "
 ```
 
-If Remotion is not in the available render engines, stop and report to the user per the Decision Communication Contract. Do not substitute a reduced-fidelity render path without approval.
+If the authorized runtime is unavailable or incompatible, stop and report that blocker per the Decision Communication Contract. Do not silently default to another runtime or substitute a reduced-fidelity render path without approval.
 
 ### 1. Use Frame Treatment Deliberately
 
