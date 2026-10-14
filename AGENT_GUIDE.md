@@ -115,7 +115,7 @@ When the user asks to make, create, produce, or generate any video content — a
 2. **Read the pipeline manifest.** `pipeline_defs/<pipeline>.yaml` — know the stages, tools, and quality gates.
 3. **Run preflight for a new production.** Verify selected required tools via the registry; present a relevant capability shortlist only for an unresolved choice. For an existing approved run, use **Approved Production Resume** instead of restarting selection.
 4. **Execute stage by stage.** For EACH stage, read the stage director skill (`skills/pipelines/<pipeline>/<stage>-director.md`) BEFORE doing any work in that stage.
-5. **Read Layer 3 skills before calling tools.** Before using any tool with an `agent_skills` field, read the referenced skill in `.agents/skills/`. These contain provider-specific prompting guidance, parameter optimization, and quality techniques that dramatically improve output.
+5. **Use the selected tool guidance.** Read the skills named by the selected tool's `agent_skills` contract before authoring its inputs. Director or tool content already read in the current stage packet counts; reuse it while source and task scope remain applicable. Consult other skills only for a concrete need.
 
 **Do NOT:**
 - Write ad-hoc Python scripts to call tools directly
@@ -124,7 +124,7 @@ When the user asks to make, create, produce, or generate any video content — a
 - Use a tool without checking its Layer 3 skill for prompting guidance
 - Bypass preflight, checkpoints, or review
 
-The intelligence is in the skills, not in improvised code. An agent that reads the director skills and Layer 3 knowledge will produce significantly better output than one that calls tools directly with generic prompts.
+Skills provide task-specific guidance; their presence or a read receipt does not prove better output. Inspect the resulting artifact against the current brief and relevant acceptance criteria.
 
 ## What OpenMontage Is
 
@@ -698,11 +698,11 @@ Reading order:
 2. relevant pipeline or creative skill (Layer 2) — know HOW to use it in this context
 3. underlying vendor skill (Layer 3) — **mandatory before calling any generation tool**
 
-**Prefer skills over source code for tool usage.** Skills exist precisely so you don't need implementation details in the common case. Layer 2 tells you *what* and *when*. Layer 3 tells you *how*. For authoring prompts, choosing parameters, or understanding usage patterns, you should be reading skills — not `.py` files.
+**Use the narrowest relevant source.** For normal tool use, read the selected contract and its applicable skill sections. Reuse content already read; do not reload the director, provider guidance or catalog merely because another stage or message started.
 
 **Exception: debugging, audits, and verifying the governance contract.** When a skill and a tool disagree, or when something behaves differently than the skill claims, reading the tool source is fair game — that's often the only way to catch a silent-availability bug or a stale doc string. An audit that refuses to look at the implementation will miss exactly the bugs that matter most. If you do read source to debug, consider whether the finding belongs in a skill update afterward so the next agent doesn't need to repeat the dive.
 
-**Layer 3 is not optional.** Every generation tool (video, image, TTS, music) has an `agent_skills` field listing its Layer 3 skills. These skills contain provider-specific prompt engineering, parameter tuning, and quality techniques. Read them before writing prompts. The difference between a generic prompt and a skill-informed prompt is the difference between "usable" and "cinematic."
+**Layer 3 is not optional for the selected tool.** Follow its current `agent_skills` references when writing prompts or selecting parameters. Other providers and table categories are conditional references. A skill cannot override the approved model, runtime, budget or publication authority; missing or conflicting guidance requires checking the actual contract.
 
 Example: Before calling `kling_video`, read its `agent_skills` → `ai-video-gen` → get Kling-specific prompt structure, camera direction syntax, and quality keywords that the model responds to best.
 
