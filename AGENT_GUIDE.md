@@ -458,7 +458,7 @@ See `remotion-composer/SCENE_TYPES.md` for the authoritative list and their cut 
 
 These stock scene-types are the **templated** path — fast and reliable, but they are why videos look alike. For **hero work, prefer atelier mode** (hand-authored composition) over this catalog; read those types as a *mechanics codex*, not a menu to assemble. See "Composition Authoring Mode" above and `skills/meta/bespoke-composition.md`.
 
-**When Remotion is NOT available** and `render_runtime="remotion"` was NOT locked, `video_compose` may use FFmpeg Ken Burns motion on still images. This still works but produces less engaging visuals. Mention this tradeoff in the proposal. When `render_runtime="remotion"` IS locked and Remotion is unavailable, that's a blocker — escalate, don't silently swap.
+FFmpeg Ken Burns may be considered for an unresolved runtime choice when the requested deliverable permits still-image motion and the actual tool contract supports it. Availability of a fallback does not authorize changing an exact selected runtime or delivery promise. An unavailable authorized runtime is a blocker; report it and resolve the necessary choice before dependent rendering.
 
 When `render_runtime="hyperframes"` is locked and HyperFrames is unavailable (Node < 22, missing `ffmpeg`/`npx`, or `hyperframes doctor` reports issues), that's also a blocker. Do not substitute Remotion or FFmpeg without user approval + a logged `render_runtime_selection` decision.
 
