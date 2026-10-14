@@ -4,6 +4,20 @@ Use this router first. `AGENT_GUIDE.md` is a supporting reference: read only the
 named sections needed for the task, not the full guide on every message. Reuse
 instructions already read while their source and task scope remain applicable.
 
+## Session and project recovery
+
+For a new or resumed substantive task, recover the project purpose, current
+boundaries and exact assignment using `PROJECT_CONTEXT.md` and the read-only
+`scripts/session_context.py` reader. Select a task only with its native session
+and task ID; select a production only when its exact run was assigned. The outer
+workspace and a Git checkout keep distinct task stores: use the explicit
+`--task-root` for the record's owner, never copy another chat's binding.
+
+See `docs/session-recovery.md` for scoped commands and limits. Keep current
+cumulative decisions and checkpoint partial progress separate from frozen stage
+provenance. Recovery output grants no approval, spend, generation or publication
+authority. Reuse applicable context; do not repeat this read for every message.
+
 ## Route the request
 
 | Request | Required next step |

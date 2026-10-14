@@ -7,6 +7,14 @@ Previously read guidance may be reused while its source and task scope still app
 
 For architecture, key files, and conventions see [`PROJECT_CONTEXT.md`](PROJECT_CONTEXT.md).
 
+## Session recovery entry
+
+For a new or resumed assigned task, `scripts/session_context.py` provides a
+read-only project overview and explicitly selected task/run evidence. Follow
+`docs/session-recovery.md`; keep cumulative decisions and partial work separate
+from frozen stage receipts. This supplements the approved-resume protocol below
+and cannot approve a gate, change a budget or start production.
+
 ## Approved Production Resume
 
 An exact approved resume continues an identified run; it is not a new proposal.
