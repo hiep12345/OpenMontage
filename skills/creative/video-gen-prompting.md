@@ -10,6 +10,12 @@ in the table below.
 
 For model-specific tips, see the linked guides below.
 
+For new creative treatments or a prompt that needs a better way to express its
+intent, selectively consult [community video patterns](prompting/community-video-patterns.md).
+It contains reviewed prompts.chat starting points and illustrative Decor/MT
+adaptations. Skip it for an unchanged approved resume or when existing guidance
+is sufficient; community examples do not select the provider or accept media.
+
 ## Model-Specific Guides
 
 | Model | Guide | Key Insight |
