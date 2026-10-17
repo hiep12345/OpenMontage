@@ -16,7 +16,7 @@ from pathlib import Path
 
 import pytest
 
-from styles.playbook_loader import list_playbooks, validate_contrast
+from styles.playbook_loader import list_playbooks, load_playbook, validate_contrast
 from tools.video.video_compose import VideoCompose
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -128,3 +128,23 @@ def test_every_playbook_theme_keeps_captions_legible(playbook: str) -> None:
         f"{playbook}: caption text {theme['textColor']} on bar {caption_bar} "
         f"is {ratio}:1, below WCAG AA {MIN_CONTRAST}:1"
     )
+
+
+@pytest.mark.parametrize(
+    ("background", "foreground"),
+    [("#F4ECDF", "#41291E"), ("#767676", "#FFFFFF"),
+     ("#767676", "#000000"), ("#0F172A", "#FFFFFF")],
+)
+def test_custom_palette_captions_keep_actual_text_legible(
+    background: str, foreground: str, monkeypatch,
+) -> None:
+    """A middle-gray background can have valid white or black text; preserve both."""
+    playbook = load_playbook("photographic-editorial")
+    palette = playbook["visual_language"]["color_palette"]
+    palette.update(background=background, text=foreground)
+    monkeypatch.setattr("styles.playbook_loader.load_playbook", lambda _: playbook)
+
+    theme = VideoCompose()._build_theme_from_playbook("custom", {})
+    assert theme["textColor"] == foreground
+    caption_bar = _composite(theme["captionBackgroundColor"], background)
+    assert validate_contrast(foreground, caption_bar)["ratio"] >= MIN_CONTRAST

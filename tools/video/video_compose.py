@@ -1333,11 +1333,24 @@ class VideoCompose(BaseTool):
 
             # Derive caption colors from the palette
             theme["captionHighlightColor"] = primary
-            # Caption background: semi-transparent version of the bg color
-            theme["captionBackgroundColor"] = (
-                f"rgba(255, 255, 255, 0.85)" if bg.upper() in ("#FFFFFF", "#FAFAFA", "#F9FAFB")
-                else f"rgba(15, 23, 42, 0.75)"
-            )
+            # Compare the actual text against each composited scrim. Background
+            # lightness alone can choose a white bar under valid white text.
+            from styles.playbook_loader import _hex_to_rgb, validate_contrast
+            background_rgb = _hex_to_rgb(bg)
+            scrims = [
+                ("rgba(255, 255, 255, 0.85)", (255, 255, 255), 0.85),
+                ("rgba(15, 23, 42, 0.75)", (15, 23, 42), 0.75),
+            ]
+
+            def caption_contrast(candidate):
+                _, rgb, alpha = candidate
+                blended = "#" + "".join(
+                    f"{round(alpha * front + (1 - alpha) * back):02X}"
+                    for front, back in zip(rgb, background_rgb)
+                )
+                return validate_contrast(text, blended)["ratio"]
+
+            theme["captionBackgroundColor"] = max(scrims, key=caption_contrast)[0]
 
             # Motion style from playbook. `pace` is an identity field in the
             # playbook schema; motion carries pacing_rules, not a pace enum.
