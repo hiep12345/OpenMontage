@@ -57,6 +57,7 @@ compatible_playbooks:
   also_works:
     - clean-professional
     - minimalist-diagram
+    - photographic-editorial
   custom_allowed: true
 
 stages:

@@ -1,0 +1,60 @@
+identity:
+  name: "Photographic Editorial"
+  category: minimalist
+  mood: warm, tactile, editorial
+  pace: deliberate
+  best_for: "Photographic room transformations, material stories, product and interior detail reveals"
+
+visual_language:
+  color_palette:
+    primary: ["#41291E", "#C8A36F"]
+    accent: ["#A75F39"]
+    background: "#F4ECDF"
+    text: "#41291E"
+    muted: "#705B4D"
+  composition: "Full-bleed photographic hero alternating with opaque cream editorial pages, generous margins, meaningful detail crops and a final comparison inset. Adapt palette and framing to the approved brand and aspect ratio."
+  texture: "Source photographic material texture; warm terracotta, pale oak and matte cream defaults, without synthetic grain obscuring detail."
+
+typography:
+  headings:
+    font: "Georgia"
+    weight: 400
+    tracking: "-0.02em"
+  body:
+    font: "Arial"
+    weight: 400
+    line_height: 1.4
+  scale_system: perfect_fourth
+
+motion:
+  transitions: [opaque-page-wipe, fixed-scale-mask-reveal, cut]
+  animation_style: "Paused seekable GSAP timeline; registered photographic states reveal at fixed scale, editorial pages conceal perspective changes, detail drift remains restrained."
+  pacing_rules:
+    min_scene_hold_seconds: 2
+    max_scene_hold_seconds: 12
+    text_card_hold_seconds: 3
+    transition_duration_seconds: 0.7
+  entrance: "Short eased title rise or anchored opaque mask reveal"
+  exit: "Opaque editorial page lift with a clear room payoff hold"
+
+audio:
+  voice_style: "Optional only when the approved brief requests narration; music-led is valid."
+  music_mood: "Warm restrained instrumental, authorized and locally available"
+  music_volume: 0.15
+  sfx_style: "Optional quiet tactile accents; avoid decorative noise"
+
+asset_generation:
+  image_prompt_prefix: "photographic editorial interior, tactile materials, warm natural light, coherent perspective, "
+  image_negative_prompt: "warped geometry, floating furniture, illegible text, incompatible camera views disguised as a renovation"
+  consistency_anchors:
+    - "Prefer supplied authorized before, intermediate and after photographs over new generation"
+    - "Keep matched room views at identical scale, crop and position during reveals"
+    - "Use an opaque editorial cut when source perspectives differ"
+    - "Preserve meaningful changes in materials, artwork, lighting and room use"
+
+quality_rules:
+  - "Readable sans labels and serif display titles; validate actual text contrast on photographs"
+  - "Full-bleed opaque backing throughout; avoid transparent gaps during page lifts"
+  - "No fabricated physical renovation claim or geometry interpolation between mismatched photographs"
+  - "Duration extensions add meaningful detail and room holds rather than stretched transitions"
+  - "Review the full rendered motion and audio; stills and technical checks do not establish temporal quality"

@@ -158,6 +158,11 @@ Run at **every stage** when a VideoAnalysisBrief exists (reference-driven produc
    - At least one element per concept MUST differ from the reference → **SUGGESTION** if weak
    - Creative differentiation seeds from the brief should be reflected in proposals
 
+   When the owner selected an existing series style or an extension of their own sample,
+   evaluate the requested adaptation and new story content. Shared palette, typography,
+   room identity or approved structure is not a copy finding by itself. Source/media rights
+   and the exact scope of authority remain separate checks.
+
 3. **Promise preservation:** Are the elements the user said they loved about the
    reference still present in the output?
    - User said "I love the pacing" but scene_plan has 2x longer scenes → **SUGGESTION**
@@ -326,7 +331,7 @@ The templated→atelier inversion (`AGENT_GUIDE.md` → "Composition Authoring M
    - Missing `composition_mode` decision entirely: **CRITICAL** — "Proposal missing composition_mode choice. Atelier vs templated is a mandatory presented decision (see AGENT_GUIDE.md → Composition Authoring Mode)."
    - Decision logged with only one option considered: **CRITICAL** — "composition_mode decision logged without presenting both templated and atelier alternatives."
 2. For **hero work** (brief tagged marketing / launch / brand piece / explainer-with-quality-bar / any single-deliverable where quality is the point) where `selected == "templated"`: **CRITICAL** — "Hero brief locked composition_mode='templated'. Default is atelier per doctrine; templated requires an explicit reason in `decision_log.<entry>.reason` (e.g. localization variant, batch, time-boxed draft)." Only suppress if the reason field names a sanctioned exception.
-3. If `composition_mode == "atelier"` and `proposal_packet` lacks an `art_direction` declaration (palette, type, motion, signature device): **CRITICAL** — "Atelier proposal missing art-direction commitment. Per `skills/meta/bespoke-composition.md` step 1, art direction must be written down *before* authoring scenes."
+3. If `composition_mode == "atelier"` and `proposal_packet` lacks an `art_direction` declaration (palette, type, motion, and a signature device when useful): **CRITICAL** — "Atelier proposal missing art-direction commitment. Per `skills/meta/bespoke-composition.md` step 1, art direction must be written down *before* authoring scenes." A signature device is optional, not a separate acceptance requirement.
 
 ### At scene_plan / edit stage (when composition_mode == "atelier"):
 1. `edit_decisions.composition_mode` must equal `"atelier"` and `edit_decisions.bespoke.{entry, composition_id, art_direction}` must all be set.
@@ -335,20 +340,23 @@ The templated→atelier inversion (`AGENT_GUIDE.md` → "Composition Authoring M
 2. Any presence of stock `cut.type` scene-types (`text_card`, `stat_card`, `bar_chart`, `kpi_grid`, `callout`, `comparison`, `hero_title`, `terminal_scene`, `anime_scene`, `progress_bar`, `pie_chart`, `line_chart`) in `edit_decisions.cuts`: **CRITICAL** — "Atelier piece reaches for stock cut.type {name}. Hand-author the scene; the stock registry is a mechanics codex, not a parts bin (`skills/meta/bespoke-composition.md`)."
 
 ### At compose stage (when composition_mode == "atelier"):
+
+Checks 1–3 below describe the Remotion atelier adapter. For HyperFrames, inspect the
+authored-entry preservation, unified check/render results and declared art direction from
+the actual authored-workspace path; do not require or fabricate a Remotion `checks.atelier`
+block. The story, text and applicable source-fidelity checks still apply to either runtime.
+
 1. The compose stage's `final_review.checks.atelier` block must exist. If absent: **CRITICAL** — "Atelier render skipped doctrine checks — `_render_via_atelier` returned without `atelier` checks; investigate tool wiring."
 2. If `final_review.checks.atelier.stock_reuse_detected == true`: **CRITICAL** — "Stock-registry import inside bespoke project ({offending_imports[0].file} → {offending_imports[0].import}). Hand-author the scene; do not import from the stock src/."
 3. If `final_review.checks.atelier.art_direction_declared == false`: **CRITICAL** — "Atelier render with no art-direction declaration. Set `edit_decisions.bespoke.art_direction` before re-render."
-4. **Scene distinctness — no hero-component spine (mandatory record).** Sample one representative frame per scene (e.g. mid-window of each `props.sections[i]`) and answer in the review record:
-   - *Does each scene have a distinct primary visual subject?* If two or more scenes share their primary visual (same hero element merely re-captioned — the candle that never leaves, the browser frame on every beat, the score ring as scaffolding): **CRITICAL** — "Hero-component spine detected: scenes {ids} share their primary visual subject. Per `skills/meta/bespoke-composition.md` step 1.5, each scene must earn its own composition; the signature device belongs to one climactic beat, not as scaffolding. Re-plan the affected scenes."
-   - *Is the signature device named in `art_direction` actually present in at least one beat?* (no ⇒ CRITICAL, re-author or update the declaration to match what was actually built)
-   - *Is the signature device present in **most** beats?* (yes ⇒ CRITICAL — see hero-component-spine above; signature is meant to be scarce)
+4. **Scene development — avoid cosmetic recaptioning (mandatory record).** Sample representative exported frames and record each beat's subject, visible state/view and story purpose:
+   - Does each beat add information, an action, a detail or a payoff? A selected photographic/editorial room reveal may return to the same room and preserve scale for a before/after comparison. Do not flag repeated subject identity alone. If imagery is merely re-captioned without developing the promised story, name the affected beats, evidence and concrete repair; make it **CRITICAL** when it breaks that promise.
+   - If a signature device was declared, is it present where promised? A missing promised device needs repair or an authorized direction update; an intentionally undeclared device is not a finding.
+   - Is recurrence purposeful or filler? Series branding, room continuity and a selected visual method may recur; arbitrary novelty or subject-count quotas are not acceptance criteria.
    This check cannot be skipped silently; absence of a recorded scene-by-scene inventory is itself **CRITICAL** ("scene_distinctness inventory not recorded").
 5. **Captions / on-screen text dedup (mandatory check).** Compare the active caption text to any on-screen text rendered in the same time window:
    - If they are the same content (caption echoes the scene's title/headline that the narration is already reading aloud): **CRITICAL** — "Caption duplicates on-screen text at {t}s ('{text}'). Decide once per piece whether captions add meaning (numbers, names, translations) or are accessibility subtitles; do not do both for the same line. Either clear `captions=[]` for these scenes or remove the redundant on-screen SerifLine."
-6. **Distinctness review (human-judged, mandatory).** Before approving the render, the reviewer must explicitly answer in the review record:
-   - *"Could this video be any other product's video?"* (yes ⇒ CRITICAL, re-author art direction)
-   - *"Does its visual language reuse a look from a prior piece I've made?"* (yes ⇒ CRITICAL, re-author)
-   Distinctness is taste-call territory the tool can't automate; reviewer absence on this question is itself a **CRITICAL** finding ("distinctness review not recorded").
+6. **Direction and subject fit (inspection required).** Record whether the actual composition serves this subject and matches the authorized direction. When a reusable series look was selected, identify what remains consistent and what this piece develops. Reusing that look is not a failure; unexplained copying or interchangeable filler needs a concrete finding. Sampled frames establish only sampled visual evidence: full-motion pacing, actual listening and AV-sync remain **NOT_TESTED** until inspected through a supported path. Automatic review fields cannot stand in for that inspection.
 
 ### At publish stage (when composition_mode == "atelier"):
-1. All six atelier compose-stage checks above (existence of `atelier` block, stock_reuse, art_direction_declared, scene_distinctness, captions/text dedup, human distinctness review) must show `resolved` in the review record. Any unresolved: **CRITICAL** — "Cannot publish atelier piece with unresolved doctrine or distinctness findings."
+1. All applicable compose-stage checks above must be resolved in the review record, including the selected runtime's real evidence and required video/audio acceptance. Unresolved required checks block publication; local diagnostic samples must retain their incomplete status. A selected style or a previous sample's acceptance does not approve a new production.

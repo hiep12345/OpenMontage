@@ -137,6 +137,7 @@ Pipeline type skills provide production guidance for specific video formats, ind
 | Long-Form | `creative/long-form.md` | YouTube 10+ min â€" chapters, retention, end screens |
 | Screen Recording | `creative/screen-recording.md` | Code walkthroughs, tutorials, software demos |
 | Animation Pipeline | `creative/animation-pipeline.md` | Motion graphics, easing, transitions, composition |
+| Photographic Editorial Motion | `creative/photographic-editorial-motion.md` | Conditional reference for approved photographic transformations and room/material stories; local authored HyperFrames reveals and editorial cuts |
 | 3D World Generation | `creative/3d-world-generation.md` | Continuous Three.js terrain worlds with semantic regions, explicit blockout/production tiers, licensed GLTF/PBR assets, diagnostics, and deterministic camera paths |
 | Character Animation Pipeline | `pipelines/character-animation/` | Rigged local cartoon characters, pose libraries, action timelines, SVG/Canvas/Remotion/HyperFrames rendering |
 | Cinematic | `creative/cinematic.md` | Letterbox, film pacing, layered audio, color grading |
@@ -302,6 +303,7 @@ Style playbooks (`styles/*.yaml`) define visual language, typography, motion, au
 |----------|----------|------|----------|
 | `clean-professional` | motion-graphics | polished, trustworthy | Corporate, educational, SaaS |
 | `premium-minimalist` | minimalist | calm, editorial | Investor updates, expert explainers, product narratives |
+| `photographic-editorial` | minimalist | warm, tactile, editorial | Photographic room transformations, material stories, product detail reveals |
 | `flat-motion-graphics` | motion-graphics | energetic, bold | Social media, TikTok, startups |
 | `minimalist-diagram` | whiteboard | focused, technical | Technical deep-dives, architecture |
 

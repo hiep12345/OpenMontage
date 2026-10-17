@@ -25,6 +25,13 @@ Quick routing for common animation-pipeline needs:
 
 **Remotion determinism rule:** every GSAP use inside a Remotion component must drive timeline progress from `useCurrentFrame()` — never `requestAnimationFrame`. Pattern examples in `.agents/skills/gsap-react/SKILL.md`.
 
+For approved photographic transformation or interior/material editorial motion,
+read `skills/creative/photographic-editorial-motion.md` only when relevant to the
+brief or selected `photographic-editorial` playbook. It covers local before /
+intermediate / after inputs, fixed-scale reveals and opaque editorial cuts via
+the existing authored HyperFrames route. Preserve the authorized runtime and
+approval gates; this reference does not apply automatically to unrelated tasks.
+
 ## Prerequisites
 
 | Layer | Resource | Purpose |
