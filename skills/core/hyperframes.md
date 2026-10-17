@@ -24,6 +24,13 @@ timeline rules, CLI flags, registry blocks, website-to-video):
 
 This file teaches the bridge between the two.
 
+For approved photographic transformations, room/material stories or a selected
+`photographic-editorial` playbook, conditionally read
+`skills/creative/photographic-editorial-motion.md`. It gives a concrete local
+HTML/GSAP authoring method for the existing atelier `render_existing` path,
+including matched-photo reveals, opaque editorial cuts and duration adaptation.
+It does not change runtime authority or load for unrelated animation tasks.
+
 ---
 
 ## When OpenMontage should pick HyperFrames (vs Remotion vs FFmpeg)

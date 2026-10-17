@@ -102,7 +102,7 @@ def style_bridge(
         primary = _first(palette.get("primary"), css["--color-primary"])
         secondary = _first(palette.get("secondary"), css["--color-secondary"])
         surface = _first(palette.get("surface"), css["--color-surface"])
-        muted = _first(palette.get("muted_text"), css["--color-muted"])
+        muted = _first(palette.get("muted") or palette.get("muted_text"), css["--color-muted"])
 
         duration, ease = _motion_easing(motion)
 
@@ -115,7 +115,7 @@ def style_bridge(
                 "--color-secondary": secondary,
                 "--color-surface": surface,
                 "--color-muted": muted,
-                "--font-heading": _font(typo, "heading", css["--font-heading"]),
+                "--font-heading": _font(typo, "headings", _font(typo, "heading", css["--font-heading"])),
                 "--font-body": _font(typo, "body", css["--font-body"]),
                 "--font-mono": _font(typo, "code", css["--font-mono"]),
                 "--ease-primary": ease,

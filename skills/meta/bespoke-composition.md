@@ -1,16 +1,24 @@
 # Bespoke Composition (Atelier Mode)
 
 Meta-skill for **hand-authoring a composition from scratch** instead of assembling stock
-scene-types. This is the "hand-stitched every time" path: for hero pieces, every pixel of the
-look is written fresh so no two videos share a visual language.
+scene-types. Scenes and source-specific choices belong to the current piece. An explicitly
+selected series style may share a visual language across productions.
 
 Read this whenever you've chosen **atelier mode** for a piece (see "When to use"). It does not
 hand you components — it routes you to the *principles, engine mechanics, and tool wiring* you
 need so that what you build is correct, and distinct.
 
-> The single rule that governs everything below: **reuse engine knowledge, never creative
-> components.** How Remotion resolves an asset is engine knowledge — reuse it freely. How a
-> previous video looked is a creative decision — never reuse it.
+> Reuse engine knowledge and an explicitly selected visual method. Do not silently replace
+> the approved direction with stock scenes or copy an unrelated finished composition.
+> Reusing a palette, type system or reveal principle does not authorize reusing production
+> media, music, claims, spend or acceptance receipts.
+
+For selected photographic editorial work, read
+`skills/creative/photographic-editorial-motion.md`. Its room-led storytelling deliberately
+revisits the same subject through changed states, detail views and a visible payoff. Judge
+those beats by what they reveal, not by a requirement to invent a new subject or look each
+time. This qualification applies to the novelty checks below; it does not waive runtime,
+approval, source fidelity or final video/audio review.
 
 ## When to use this skill (authoring mode is a proposal decision)
 
@@ -46,12 +54,13 @@ Before writing any component, decide a visual language that fits **this** topic 
 Read **`skills/meta/taste-direction.md`** first and write the `taste_profile`: the design read,
 `visual_variance`, `motion_intensity`, `information_density`, reference strategy, and
 anti-patterns. Then use the **`visual-style`** Layer 3 skill (CREATE mode) to lock: palette, type personality,
-motion character, layout system, and **one signature device** unique to this piece. Difference
-between videos is guaranteed here — not by withholding components, but by forcing a fresh
-direction each time. Write it down (a short `art-direction.md` in the project) and build to it.
+motion character, layout system, and a signature device when useful. Recover an explicitly
+selected series identity rather than forcing a fresh language each time. Write the direction
+down (a short `art-direction.md` in the project) and build to it.
 
-Ask yourself: *what visual metaphor belongs to this subject that I have not used before?* If the
-answer resembles a past piece, you haven't found the direction yet.
+Ask what visual treatment serves this subject. When a series method was selected, record
+what remains consistent and what this piece adds; resemblance to that authorized style is
+intentional, not a reason to restart art direction.
 
 ### 1.5 Plan each scene as its own composition — no hero-component spine
 The most insidious form of templating sneaks back in at the *scene* level: pick one striking
@@ -59,15 +68,14 @@ visual (a candle, a browser frame, a score ring), then re-use it every scene wit
 text underneath. The piece feels custom because the hero is custom — but every scene is
 mechanically the same composition. That's branded slides, not a film. **Don't do that.**
 
-The signature device named in your art-direction is meant to appear in **one or at most two
-beats** — typically the climactic moment — not as the visual scaffolding of every scene. It
-earns its weight by being scarce.
+Use the signature device where it serves the story. For a selected room-led series, recurring
+room framing may establish continuity; vary state, scale or information purpose rather than
+adding an arbitrary new subject just to satisfy a novelty count.
 
 For each scene in the plan, answer concretely *before* writing code:
 
-- **What is this scene's primary visual subject?** It must be *different* from the previous
-  scene's. A character. A diagram. A piece of evidence. A landscape. A typographic moment. The
-  signature device. A void. Each scene's primary subject is its job.
+- **What is this scene's primary visual subject and what changes?** A new subject may help,
+  or the same room/product may reveal a new state, detail or comparison. Each beat needs a job.
 - **Why does this beat exist?** What does it do for the story that no other beat does? If you
   can collapse two scenes into one without losing meaning, you should.
 - **How does it differ visually from the scene before and after?** Different composition (rule
@@ -76,10 +84,10 @@ For each scene in the plan, answer concretely *before* writing code:
 - **If you removed the signature device from this scene, would the scene still work?** If yes,
   the signature device probably doesn't belong in this scene — it's there as filler. Cut it.
 
-The reviewer enforces this as a "scene_distinctness" check (see
-`skills/meta/reviewer.md` → Composition Authoring Mode Review): a recorded inventory of
-each scene's primary subject + first frame, and an explicit answer to "do any two scenes
-share their primary visual subject?" Yes ⇒ CRITICAL ⇒ re-plan.
+The reviewer checks `scene_distinctness` (see `skills/meta/reviewer.md` → Composition
+Authoring Mode Review): record each scene's subject, visible state/view and purpose. Repeated
+subjects are acceptable when they develop the approved story; cosmetic recaptioning without
+new information is a finding that should name the affected beats and a concrete repair.
 
 The corollary: the per-scene plan is a *first-class artifact*, not implied. Write it down
 (in `art-direction.md` or a sibling `scenes.md`) before authoring `Composition.tsx`.
@@ -109,9 +117,10 @@ families (`css-distortion`, `css-destruction`, `css-radial`, `css-light`, `css-m
 Anime.js, CSS keyframes, WAAPI, and TypeGPU (GPU compute). The headline capability is
 `adapters/html-in-canvas-patterns.md` — capture live HTML/CSS as a GPU texture and render
 through WebGL/Three.js for cinematic bloom, shatter, liquid, portal effects. Use it for 1–3
-hero beats per video, not every beat. **Compose 2–4 distinct atomic rules per beat** and use
-**at least 3 different easings across the piece** — that's the doctrine baked into the
-animation skill, not optional polish.
+hero beats when the idea benefits from them. Select rules and easing for the approved
+scene purpose; restrained photographic reveals, editorial cuts and useful still holds
+may need very little motion. Rule counts or a minimum number of easings are not quality
+gates. Do not add effects solely to meet a quota.
 
 For HF creative direction (palette/type/narration/beat planning) read `/hyperframes-creative`.
 For HF assets (TTS/BGM/SFX/transcription/background-removal) read `/hyperframes-media` or
@@ -217,9 +226,9 @@ registry (`src/components`, `src/Explainer`, etc.), and warns if `art_direction`
 
 ## Guardrails so this doesn't backfire
 
-- **Distinctness review (replaces conformance review).** Before final render, ask: *could this be
-  any other product's video? Does it reuse a look I've made before?* If yes, the art direction
-  failed — return to step 1. This is the inverse of "does it match the reference."
+- **Distinctness review.** Before final render, ask whether the piece serves its subject,
+  develops its beats and preserves the selected direction. Authorized series consistency is
+  acceptable; unexplained copying or interchangeable filler needs a specific repair.
 - **No silent fallback to stock.** "Keep it simple" applies to *mechanics* (a 10-line spring is
   fine), never to *design* (simple ≠ reaching for `text_card`). If you catch yourself adding a
   stock `cut.type` to a hero piece, stop.
@@ -269,9 +278,8 @@ Two reference pieces — one per runtime — to study **processes**, never visua
   UnrealBloom on a hero punchline). Each beat uses a distinct easing (`expo.out`,
   `back.out(2)`, `circ.out`, `sine.inOut`).
 
-**Do not reproduce any of their visual languages** — the next piece must look nothing like
-any of them. That is the whole point. Study only the *process* (decisions, ordering, gates,
-verification).
+These precedents do not authorize copying their media or completed compositions. Study their
+process; reuse a visual method only when it is part of the current authorized direction.
 
 See also: `skills/meta/animation-runtime-selector.md` (runtime + library routing),
 `AGENT_GUIDE.md` → "Composition Authoring Mode", `/hyperframes` (the HF router and
