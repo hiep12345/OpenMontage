@@ -306,15 +306,16 @@ Run at **compose** and **publish** stages. Ensures the agent reviewed the actual
    - If missing: **CRITICAL** — "Compose produced a render_report but no final_review. The agent must inspect the rendered output before presenting it."
 2. **Status check**: What is `final_review.status`?
    - `pass` → OK, proceed
-   - `revise` → The agent should have fixed issues before presenting. If the pipeline continued anyway: **CRITICAL** — "Self-review found revise-worthy issues but the agent presented anyway."
+   - `revise` → Resolve missing review or fix confirmed defects before claiming completion. `block` with `NOT_TESTED` means inspect the existing render, not automatically rerender or buy another provider call. Render success and review readiness are separate.
    - `fail` → The pipeline MUST NOT proceed. If it did: **CRITICAL**
 3. **Check completeness**: All 5 required checks must have data:
    - `technical_probe` must show a valid container with plausible duration/resolution
-   - `visual_spotcheck` must have `frames_sampled >= 4`
-   - `audio_spotcheck` must report narration/music presence
-   - `promise_preservation` must confirm `delivery_promise_honored`
-   - `subtitle_check` must report presence/absence
-   - Any check with missing data: **SUGGESTION** — "Self-review check [X] has incomplete data"
+   - `visual_spotcheck`: extracted frames are evidence to inspect, not proof of inspection. Read actual pixels for relevant states; still frames cannot establish motion quality.
+   - `audio_spotcheck`: volume measurements cannot establish narration, music, intelligibility, clipping or AV sync. Assess the actual output against approved audio intent; intentional silence does not require narration/music.
+   - `promise_preservation`: confirm applicable promises against the approved records; null means not checked, not honored.
+   - `subtitle_check`: source-file existence cannot prove rendered burn-in, coverage or timing; a detected subtitle stream proves only stream presence.
+   - Record the actual method, scope, output identity and findings when completing review. Preserve automated measurements and historical receipts. Unknown/null/`NOT_TESTED` must not become PASS without the required inspection; use NOT_APPLICABLE only with brief-specific evidence. Do not invent a universal paid review requirement.
+   - Any required acceptance area still unknown blocks complete/publish claims. Automated technical-only reports intentionally remain `revise`; do not treat that as a rendering failure.
 4. **Promise preservation**: If `promise_preservation.silent_downgrade_detected` is true: **CRITICAL** — "Self-review detected silent downgrade from motion-led to still-led."
 
 ### At publish stage:

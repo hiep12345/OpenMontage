@@ -34,6 +34,7 @@ import contextlib
 import json
 import hashlib
 import logging
+import math
 import secrets
 import shutil
 import subprocess
@@ -2305,9 +2306,10 @@ class VideoCompose(BaseTool):
     ) -> dict[str, Any]:
         """Run post-render self-review and produce a final_review artifact.
 
-        This is the governance contract: the compose runtime MUST inspect
-        the actual rendered output before marking the stage complete.
-        Never claim a video is ready without a real probe + frame sample.
+        This collects technical evidence, not visual or auditory acceptance.
+        Extracted frames and volume levels cannot establish content quality.
+        Perceptual checks remain NOT_TESTED until actual review of the output;
+        a successful render remains usable, but is not ready for completion.
 
         When `proposal_packet` is provided, its
         `production_plan.render_runtime` is compared against
@@ -2344,6 +2346,8 @@ class VideoCompose(BaseTool):
                 )
 
                 duration = float(fmt.get("duration", 0))
+                if not math.isfinite(duration) or duration <= 0:
+                    raise ValueError("Output duration must be positive and finite")
                 width = int(video_stream.get("width", 0))
                 height = int(video_stream.get("height", 0))
                 fps_str = video_stream.get("r_frame_rate", "0/1")
@@ -2386,8 +2390,7 @@ class VideoCompose(BaseTool):
                     technical_probe["issues"].append(
                         f"Resolution {width}x{height} is very low"
                     )
-                if not audio_stream:
-                    technical_probe["issues"].append("No audio stream in output")
+                # Audio absence is a measured fact, not a defect without a brief.
             else:
                 technical_probe["issues"].append(
                     f"ffprobe failed with exit code {proc.returncode}"
@@ -2399,121 +2402,96 @@ class VideoCompose(BaseTool):
 
         issues.extend(technical_probe.get("issues", []))
 
-        # --- 2. Visual spotcheck: sample 4 frames ---
+        # --- 2. Prepare visual evidence; extraction is not inspection ---
         visual_spotcheck: dict[str, Any] = {
+            "review_status": "NOT_TESTED",
+            "method": "frame_extraction_only",
             "frames_sampled": 0,
             "frame_paths": [],
-            "black_frames_detected": False,
-            "broken_overlays": False,
-            "missing_assets": False,
-            "unreadable_text": False,
-            "issues": [],
+            "black_frames_detected": None,
+            "broken_overlays": None,
+            "missing_assets": None,
+            "unreadable_text": None,
+            "issues": ["Visual content NOT_TESTED: extracted frames require actual inspection."],
         }
         duration = technical_probe.get("duration_seconds", 0)
         if duration > 0 and technical_probe.get("valid_container"):
             try:
-                frame_dir = output_path.parent / ".final_review_frames"
-                frame_dir.mkdir(parents=True, exist_ok=True)
-                # Sample at 10%, 35%, 65%, 90% of duration
-                sample_points = [0.10, 0.35, 0.65, 0.90]
-                frame_paths = []
-                for i, pct in enumerate(sample_points):
-                    ts = round(duration * pct, 2)
+                # Preserve earlier evidence and never count stale samples from another run.
+                frame_dir = output_path.parent / ".final_review_frames" / secrets.token_hex(8)
+                frame_dir.mkdir(parents=True, exist_ok=False)
+                for i, pct in enumerate([0.10, 0.35, 0.65, 0.90]):
                     frame_path = frame_dir / f"review_frame_{i}.png"
                     cmd = [
-                        "ffmpeg", "-y", "-ss", str(ts),
-                        "-i", str(output_path),
-                        "-frames:v", "1", "-q:v", "2",
+                        "ffmpeg", "-y", "-ss", str(round(duration * pct, 2)),
+                        "-i", str(output_path), "-frames:v", "1", "-q:v", "2",
                         str(frame_path),
                     ]
-                    subprocess.run(cmd, capture_output=True, timeout=15)
-                    if frame_path.exists():
-                        frame_paths.append(str(frame_path))
-
-                        # Check for black frames (file size heuristic:
-                        # a 1920x1080 PNG of pure black is ~5KB)
-                        if frame_path.stat().st_size < 2000:
-                            visual_spotcheck["black_frames_detected"] = True
-
-                visual_spotcheck["frames_sampled"] = len(frame_paths)
-                visual_spotcheck["frame_paths"] = frame_paths
-
-                if len(frame_paths) < 4:
+                    proc = subprocess.run(cmd, capture_output=True, timeout=30)
+                    if proc.returncode == 0 and frame_path.is_file() and frame_path.stat().st_size:
+                        visual_spotcheck["frame_paths"].append(str(frame_path))
+                visual_spotcheck["frames_sampled"] = len(visual_spotcheck["frame_paths"])
+                if visual_spotcheck["frames_sampled"] < 4:
                     visual_spotcheck["issues"].append(
-                        f"Only {len(frame_paths)}/4 frames extracted — some timestamps may be out of range"
-                    )
-                if visual_spotcheck["black_frames_detected"]:
-                    visual_spotcheck["issues"].append(
-                        "Black frame detected — possible missing asset or failed render segment"
+                        f"Only {visual_spotcheck['frames_sampled']}/4 frames extracted"
                     )
             except Exception as e:
                 visual_spotcheck["issues"].append(f"Frame sampling error: {e}")
+        issues.extend(visual_spotcheck["issues"])
 
-        issues.extend(visual_spotcheck.get("issues", []))
-
-        # --- 3. Audio spotcheck ---
+        # --- 3. Audio measurements; loudness cannot identify speech/music ---
         audio_spotcheck: dict[str, Any] = {
-            "narration_present": False,
-            "music_present": False,
-            "unexpected_silence": False,
-            "clipping_detected": False,
-            "mix_intelligible": True,
-            "issues": [],
+            "review_status": "NOT_TESTED",
+            "method": "volumedetect_only",
+            "technical_analysis_status": "NOT_TESTED",
+            "narration_present": None,
+            "music_present": None,
+            "unexpected_silence": None,
+            "clipping_detected": None,
+            "mix_intelligible": None,
+            "issues": [
+                "Audio content NOT_TESTED: compare the output with the approved audio intent; "
+                "volume levels do not establish narration, music, intelligibility or AV sync."
+            ],
         }
         if technical_probe.get("has_audio") and duration > 0:
             try:
-                # Use ffmpeg volumedetect to check audio levels
                 cmd = [
                     "ffmpeg", "-i", str(output_path),
                     "-af", "volumedetect", "-f", "null", "-",
                 ]
-                proc = subprocess.run(
-                    cmd, capture_output=True, text=True, timeout=60
-                )
-                stderr = proc.stderr or ""
-                # Parse mean_volume and max_volume
-                mean_vol = None
-                max_vol = None
-                for line in stderr.split("\n"):
-                    if "mean_volume:" in line:
-                        try:
-                            mean_vol = float(line.split("mean_volume:")[1].strip().split()[0])
-                        except (ValueError, IndexError):
-                            pass
-                    if "max_volume:" in line:
-                        try:
-                            max_vol = float(line.split("max_volume:")[1].strip().split()[0])
-                        except (ValueError, IndexError):
-                            pass
-
-                if mean_vol is not None:
-                    if mean_vol < -60:
-                        audio_spotcheck["unexpected_silence"] = True
-                        audio_spotcheck["issues"].append(
-                            f"Mean volume {mean_vol:.1f} dB — effectively silent"
-                        )
-                    # Assume narration present if mean volume is reasonable
-                    if mean_vol > -40:
-                        audio_spotcheck["narration_present"] = True
-                    # Assume music present if audio exists (conservative)
-                    if mean_vol > -50:
-                        audio_spotcheck["music_present"] = True
-
-                if max_vol is not None and max_vol > -0.5:
-                    audio_spotcheck["clipping_detected"] = True
-                    audio_spotcheck["issues"].append(
-                        f"Max volume {max_vol:.1f} dB — possible clipping"
-                    )
+                proc = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+                if proc.returncode != 0:
+                    raise ValueError(f"volumedetect failed with exit code {proc.returncode}")
+                levels = {}
+                for line in (proc.stderr or "").splitlines():
+                    for label in ("mean_volume", "max_volume"):
+                        if f"{label}:" in line:
+                            value = float(line.split(f"{label}:", 1)[1].strip().split()[0])
+                            if not math.isfinite(value):
+                                raise ValueError(f"{label} is not finite")
+                            levels[label] = value
+                if len(levels) != 2:
+                    raise ValueError("volumedetect did not report both mean and max volume")
+                audio_spotcheck.update({
+                    "technical_analysis_status": "PASS",
+                    "mean_volume_dbfs": levels["mean_volume"],
+                    "max_volume_dbfs": levels["max_volume"],
+                    "mean_below_minus60_dbfs": levels["mean_volume"] < -60,
+                    "peak_above_minus0_5_dbfs": levels["max_volume"] > -0.5,
+                })
             except Exception as e:
+                audio_spotcheck["technical_analysis_status"] = "FAIL"
                 audio_spotcheck["issues"].append(f"Audio analysis error: {e}")
-
-        issues.extend(audio_spotcheck.get("issues", []))
+        elif technical_probe.get("valid_container") and not technical_probe.get("has_audio"):
+            audio_spotcheck["technical_analysis_status"] = "NOT_APPLICABLE"
+        issues.extend(audio_spotcheck["issues"])
 
         # --- 4. Promise preservation ---
         promise_preservation: dict[str, Any] = {
-            "delivery_promise_honored": True,
-            "silent_downgrade_detected": False,
-            "runtime_swap_detected": False,
+            "delivery_promise_honored": None,
+            "silent_downgrade_detected": None,
+            "runtime_swap_detected": None,
             "issues": [],
         }
         if edit_decisions:
@@ -2567,6 +2545,7 @@ class VideoCompose(BaseTool):
                         f"violation unless a render_runtime_selection decision was logged."
                     )
                 else:
+                    promise_preservation["runtime_swap_detected"] = False
                     promise_preservation["runtime_swap_check"] = (
                         f"ok — proposal and edit agree ({runtime_source})"
                     )
@@ -2581,6 +2560,8 @@ class VideoCompose(BaseTool):
                     promise = DeliveryPromise.from_dict(delivery_data)
                     cuts = edit_decisions.get("cuts", [])
                     result = promise.validate_cuts(cuts)
+                    promise_preservation["delivery_promise_honored"] = bool(result["valid"])
+                    promise_preservation["silent_downgrade_detected"] = False
                     motion_ratio = result.get("motion_ratio", 0)
                     promise_preservation["motion_ratio_actual"] = round(motion_ratio, 3)
 
@@ -2607,7 +2588,8 @@ class VideoCompose(BaseTool):
         # --- 5. Subtitle check ---
         subtitle_check: dict[str, Any] = {
             "subtitles_expected": False,
-            "subtitles_present": False,
+            "subtitles_present": None,
+            "review_status": "NOT_TESTED",
             "issues": [],
         }
         if edit_decisions:
@@ -2628,7 +2610,9 @@ class VideoCompose(BaseTool):
                     if proc.returncode == 0:
                         sub_data = json.loads(proc.stdout)
                         sub_streams = sub_data.get("streams", [])
-                        subtitle_check["subtitles_present"] = len(sub_streams) > 0
+                        subtitle_check["subtitle_stream_present"] = bool(sub_streams)
+                        if sub_streams:
+                            subtitle_check["subtitles_present"] = True
 
                     # If subtitles were expected but not found as a stream,
                     # they may be burned in (which is fine — not a failure)
@@ -2637,9 +2621,11 @@ class VideoCompose(BaseTool):
                         # Check if subtitle_path was used (burned in)
                         sub_source = ed_subs.get("source")
                         if sub_source and Path(sub_source).exists():
-                            # Burned-in subtitles are not detectable as streams
-                            subtitle_check["subtitles_present"] = True
-                            subtitle_check["coverage_ratio"] = 1.0
+                            subtitle_check["subtitle_source_exists"] = True
+                            subtitle_check["issues"].append(
+                                "Subtitle source exists; burn-in presence, coverage and timing "
+                                "remain NOT_TESTED in the rendered output."
+                            )
                         else:
                             subtitle_check["issues"].append(
                                 "Subtitles expected but not found in output and "
@@ -2674,12 +2660,11 @@ class VideoCompose(BaseTool):
         if critical_issues:
             status = "revise"
             recommended_action = "re_render"
-        elif issues:
-            status = "pass"
-            recommended_action = "present_to_user"
         else:
-            status = "pass"
-            recommended_action = "present_to_user"
+            # Review the existing render next; pending perception does not justify
+            # rerendering, regenerating assets or spending on another provider.
+            status = "revise"
+            recommended_action = "block"
 
         if not technical_probe.get("valid_container"):
             status = "fail"
@@ -2699,6 +2684,10 @@ class VideoCompose(BaseTool):
             },
             "issues_found": issues,
             "recommended_action": recommended_action,
+            "metadata": {
+                "review_scope": "automated_technical_only",
+                "perceptual_review_status": "NOT_TESTED",
+            },
         }
 
         log.info(

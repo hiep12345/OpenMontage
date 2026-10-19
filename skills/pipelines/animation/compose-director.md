@@ -4,6 +4,12 @@
 
 Render the animation with an emphasis on text sharpness, timing integrity, and consistent output cadence. For `image_animation` approach, this stage also includes building the composition JSON, sourcing music, running pre-render validation, and performing post-render self-review.
 
+Automatic `final_review` prepares technical evidence only. Extracted frames and
+volume levels do not establish visual/audio acceptance. Its `revise`/`block` with
+`NOT_TESTED` requires actual review of the existing render against the brief;
+it does not itself require rerendering, narration, a paid provider or new assets.
+Keep technical success separate from completion readiness and record untested areas.
+
 ## Runtime Routing (MANDATORY first step)
 
 Follow `AGENT_GUIDE.md` → "Composition Runtime Selection". Preserve an exact
@@ -43,14 +49,14 @@ The post-render self-review (final_review) is identical across runtimes — same
 
 ### 1. Ensure Assets Are in Remotion's Public Directory
 
-**CRITICAL:** Remotion can only access files via `staticFile()`, which resolves from `remotion-composer/public/`. Generated images and music files MUST be copied or symlinked into this directory before rendering.
+**CRITICAL:** Remotion can only access files via `staticFile()`, which resolves from `remotion-composer/public/`. Images and any approved music assets used by the composition MUST be copied or symlinked into this directory before rendering. Intentional silence needs no music asset.
 
 ```
 Project structure:
   projects/<name>/assets/images/*.png     ← where images were generated
   remotion-composer/public/<name>/*.png   ← where Remotion reads them
 
-Required: Copy or symlink images AND music into public/<project-name>/
+Required: Copy or symlink used images and any approved music into public/<project-name>/
 ```
 
 Image paths in the composition JSON are relative to `remotion-composer/public/`:
@@ -111,7 +117,9 @@ For `anime_scene` compositions, build a JSON file at `remotion-composer/public/d
 
 **References:** See `mori-no-seishin.json` (Ghibli forest) and `deep-ocean.json` (underwater bioluminescence) for complete working examples.
 
-### 3. Source Music and Find Optimal Offset
+### 3. Source Music and Find Optimal Offset (when approved)
+
+Skip this step when the approved brief calls for intentional silence or no music. Preserve approved audio intent; do not source or add music merely to satisfy this checklist.
 
 Use `tools/audio/pixabay_music.py` to find royalty-free ambient music matching the mood.
 
@@ -218,7 +226,7 @@ ffprobe -v quiet -print_format json -show_format -show_streams final.mp4
 ```
 - Duration within ±5% of target?
 - Resolution matches 1920×1080?
-- Audio stream present?
+- Does audio presence or intentional absence match the approved brief? Stream presence alone does not establish audible content quality.
 
 **If issues are found:** identify the cause (missing images, wrong timing, rendering glitch) and fix before presenting to user.
 
