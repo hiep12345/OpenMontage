@@ -49,6 +49,7 @@ def test_later_stage_cannot_skip_a_missing_predecessor(tmp_path) -> None:
 def test_later_stage_rejects_unapproved_gated_predecessor(tmp_path) -> None:
     project_dir = init_project(
         "run",
+        stage_context_required=False,  # Retained legacy fixture isolates approval prerequisites.
         title="Run",
         pipeline_type="framework-smoke",
         pipeline_dir=tmp_path,

@@ -1,0 +1,83 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "openmontage/artifacts/stage_logic_review",
+  "title": "Stage Logic Review",
+  "type": "object",
+  "properties": {
+    "version": {
+      "const": "1.0"
+    },
+    "stage": {
+      "type": "string",
+      "minLength": 1
+    },
+    "context_hash": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "created_at": {
+      "type": "string",
+      "minLength": 1
+    },
+    "artifact_hash": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "reviewer": {
+      "type": "string",
+      "minLength": 1
+    },
+    "method": {
+      "enum": [
+        "not_performed",
+        "manual_semantic_review"
+      ]
+    },
+    "checks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "status": {
+            "enum": [
+              "PASS",
+              "FAIL",
+              "NOT_TESTED"
+            ]
+          },
+          "observation": {
+            "type": "string"
+          },
+          "evidence": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "observation",
+          "evidence"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "version",
+    "stage",
+    "context_hash",
+    "artifact_hash",
+    "reviewer",
+    "method",
+    "checks"
+  ],
+  "additionalProperties": false
+}

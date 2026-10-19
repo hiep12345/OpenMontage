@@ -73,7 +73,7 @@ def main() -> int:
         shutil.rmtree(pdir)
 
     print(f"[sim] init_project {pid}")
-    init_project(pid, title="The Last Lighthouse", pipeline_type="cinematic",
+    init_project(pid, title="The Last Lighthouse", pipeline_type="cinematic", stage_context_required=False,
                  style_playbook="clean-professional")
     art = artifacts_for(pid)
 

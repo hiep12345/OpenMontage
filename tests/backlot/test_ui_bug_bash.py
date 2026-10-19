@@ -74,6 +74,7 @@ def _build_approval_projects() -> None:
         )
         init_project(
             project_id,
+            stage_context_required=False,  # Synthetic board fixture, not production assessment.
             title=f"Approval fixture: {stage}",
             pipeline_type=pipeline_type,
             pipeline_dir=root,
@@ -100,6 +101,7 @@ def _build_approval_projects() -> None:
     # by the stage contract rather than a hardcoded canonical-stage list.
     init_project(
         "gate-character-design",
+        stage_context_required=False,  # Synthetic board fixture, not production assessment.
         title="Approval fixture: character design",
         pipeline_type="character-animation",
         pipeline_dir=root,

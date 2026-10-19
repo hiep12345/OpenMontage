@@ -45,6 +45,9 @@ SUPPLEMENTARY_ARTIFACTS = {
     "source_media_review",  # Required before first planning stage when user media exists
     "final_review",         # Required by compose stage before presenting to user
     "video_analysis_brief", # Reference-video grounding artifact carried alongside stages
+    "stage_context",        # Relevant stage inputs, provenance and applicability
+    "knowledge_application", # Decisions bound to inputs and exact authored output
+    "stage_logic_review",   # Semantic script inspection, distinct from media QA
 }
 
 
@@ -202,6 +205,8 @@ def init_project(
     pipeline_type: str,
     pipeline_dir: Optional[Path] = None,
     style_playbook: Optional[str] = None,
+    stage_context_required: Optional[bool] = None,
+    stage_context_profile: Optional[dict[str, Any]] = None,
 ) -> Path:
     """Initialize a project workspace with the canonical layout + marker file.
 
@@ -209,23 +214,24 @@ def init_project(
     project.json — the marker the Backlot board uses to render a project's
     identity and stage rail before the first checkpoint exists.
 
+    New projects enable stage context by default. Existing projects preserve
+    their policy unless explicitly activated for a reviewed migration.
     Idempotent: re-running preserves the original created_at and merges fields.
     Returns the project directory.
     """
     _validate_style_playbook(style_playbook)
+    from lib.stage_context import enable_policy, policy_enabled, serialize_marker, validate_profile
+    from lib.stage_context_selection import DEFAULT_CONTEXT_VERSION
+
+    if stage_context_profile is not None:
+        validate_profile(stage_context_profile)
+        if stage_context_required is False:
+            raise CheckpointValidationError("stage_context_profile requires stage context activation")
     base = pipeline_dir or PROJECTS_DIR
     project_dir = base / project_id
-    for sub in (
-        "artifacts",
-        "assets/images",
-        "assets/video",
-        "assets/audio",
-        "assets/music",
-        "renders",
-    ):
-        (project_dir / sub).mkdir(parents=True, exist_ok=True)
-
     marker_path = project_dir / PROJECT_MARKER_FILENAME
+    new_project = not marker_path.exists()
+    stage_policy_requested = stage_context_required is True or (stage_context_required is None and new_project)
     marker: dict[str, Any] = {}
     if marker_path.exists():
         try:
@@ -234,16 +240,35 @@ def init_project(
         except (json.JSONDecodeError, OSError):
             marker = {}
 
+    # Reject invalid/conflicting policy input before rewriting project identity.
+    existing_policy = policy_enabled(project_dir)
+    if stage_context_profile is not None:
+        if existing_policy:
+            if stage_context_profile != marker["stage_context_policy"]["profile"]:
+                raise CheckpointValidationError("Existing policy profile differs; preserve its provenance")
+        elif not stage_policy_requested:
+            raise CheckpointValidationError("stage_context_profile requires stage context activation")
+
     marker.setdefault("version", "1.0")
     marker.setdefault("created_at", datetime.now(timezone.utc).isoformat())
     marker["project_id"] = project_id
     marker["title"] = title
     marker["pipeline_type"] = pipeline_type
+    if stage_policy_requested and "stage_context_policy" not in marker:
+        # Persist activation intent first so a partial init retry cannot silently
+        # turn an activated production into a legacy one.
+        marker["stage_context_policy"] = {"version": DEFAULT_CONTEXT_VERSION, "required": True,
+                                          "profile": stage_context_profile or {}}
     if style_playbook is not None:
         marker["style_playbook"] = style_playbook
 
+    marker_payload = serialize_marker(marker) if "stage_context_policy" in marker else json.dumps(marker, indent=2)
+    for sub in ("artifacts", "assets/images", "assets/video", "assets/audio", "assets/music", "renders"):
+        (project_dir / sub).mkdir(parents=True, exist_ok=True)
     with open(marker_path, "w", encoding="utf-8") as f:
-        json.dump(marker, f, indent=2)
+        f.write(marker_payload)
+    if stage_policy_requested or existing_policy:
+        enable_policy(project_dir, stage_context_profile)
 
     return project_dir
 
@@ -501,6 +526,13 @@ def write_checkpoint(
         status,
     )
 
+    from lib.stage_context import StageContextError, enforce_stage_context, policy_enabled
+    try:
+        enforce_stage_context(pipeline_dir / project_id, stage, status, artifacts)
+        stage_context_active = status in {"completed", "awaiting_human"} and policy_enabled(pipeline_dir / project_id)
+    except (StageContextError, OSError, ValueError, KeyError) as exc:
+        raise CheckpointValidationError(str(exc)) from exc
+
     checkpoint = {
         "version": "1.0",
         "project_id": project_id,
@@ -524,17 +556,29 @@ def write_checkpoint(
     if metadata is not None:
         checkpoint["metadata"] = metadata
 
+    has_decisions = "decision_log" in artifacts and isinstance(artifacts["decision_log"], dict)
+    if stage_context_active:
+        # Receipts bind exact authored artifacts. Runtime references belong in
+        # checkpoint metadata; validate the final bounded payload before writes.
+        if has_decisions:
+            checkpoint["metadata"] = {**checkpoint.get("metadata", {}), "decision_log_ref": str(_decision_log_path(pipeline_dir, project_id))}
+        validate_checkpoint(checkpoint)
+        from lib.stage_context import MAX_BYTES
+        payload = json.dumps(checkpoint, ensure_ascii=False, indent=2, allow_nan=False)
+        if len(payload.encode("utf-8")) > MAX_BYTES:
+            raise CheckpointValidationError("Stage-context checkpoint exceeds 2 MiB; narrow its inputs before advancement")
+
     # Merge decision_log: if this checkpoint carries new decisions,
     # append them to the project-level decision log file, then write the
     # reference back into relevant artifacts so downstream consumers can find it.
-    if "decision_log" in artifacts and isinstance(artifacts["decision_log"], dict):
+    if has_decisions:
         _merge_decision_log(pipeline_dir, project_id, artifacts["decision_log"])
         log_ref = str(_decision_log_path(pipeline_dir, project_id))
 
         # Write decision_log_ref into proposal_packet and render_report
         # artifacts if they are present in this checkpoint.
         for artifact_key in ("proposal_packet", "render_report"):
-            if artifact_key in artifacts and isinstance(artifacts[artifact_key], dict):
+            if not stage_context_active and artifact_key in artifacts and isinstance(artifacts[artifact_key], dict):
                 plan_or_top = artifacts[artifact_key]
                 # proposal_packet stores it under production_plan
                 if artifact_key == "proposal_packet":
@@ -554,7 +598,10 @@ def write_checkpoint(
     # new one atomically.
     tmp_path = path.with_suffix(".json.tmp")
     with open(tmp_path, "w", encoding="utf-8") as f:
-        json.dump(checkpoint, f, indent=2)
+        if stage_context_active:
+            f.write(payload)
+        else:
+            json.dump(checkpoint, f, indent=2)
     # Preserve run history: a superseded completed/awaiting_human checkpoint
     # is copied to history/ (stage versioning, gate audit trail, replay).
     _archive_superseded_checkpoint(path, stage)
