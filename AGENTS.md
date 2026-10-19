@@ -35,6 +35,16 @@ restart a production. Ask only for missing information that prevents progress.
 
 ## Binding production boundaries
 
+- At each new production stage, run `scripts/stage_context.py --project <run>
+  inspect --stage <stage>` and read the selected content. Set the actual brief's
+  channel/content selectors with `init_project(..., stage_context_profile=...)`
+  or explicit `configure`; missing selectors skip scoped feedback, never justify
+  guessing. Read needed truncated sections with `read-item`. Follow
+  `docs/stage-context.md` for unassessed templates and explicit output-bound
+  `handoff`; do not generate applied/PASS decisions in loops. Receipts attest to
+  recorded decisions, not comprehension or media quality. Existing runs retain
+  their policy/history until explicit compatible migration; maintenance and
+  status do not start production.
 - The agent orchestrates from manifests, stage skills and records; Python tools
   provide capabilities and persistence. All video production uses a pipeline.
 - Before stage work, read its manifest-selected director skill and the relevant

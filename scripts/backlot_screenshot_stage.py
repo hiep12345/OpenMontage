@@ -171,7 +171,7 @@ def stage_project(pid: str, title: str, palette: str, scenes: list, *,
     """state: 'complete' | 'assets_live' | 'script_gate' | 'early'"""
     top, bottom, glow = PALETTES[palette]
     pdir = STAGE_DIR / pid
-    init_project(pid, title=title, pipeline_type="cinematic",
+    init_project(pid, title=title, pipeline_type="cinematic", stage_context_required=False,
                  pipeline_dir=STAGE_DIR, style_playbook="clean-professional")
     art_dir = pdir / "artifacts"
 

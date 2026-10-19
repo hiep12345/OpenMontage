@@ -1,0 +1,152 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "openmontage/artifacts/stage_context",
+  "title": "Stage Context",
+  "type": "object",
+  "properties": {
+    "version": {
+      "enum": ["1.0", "1.1"]
+    },
+    "stage": {
+      "type": "string",
+      "minLength": 1
+    },
+    "context_hash": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "project": {
+      "type": "string",
+      "minLength": 1
+    },
+    "profile": {
+      "type": "object"
+    },
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "kind": {
+            "enum": [
+              "director",
+              "project_guidance",
+              "manifest",
+              "brief",
+              "prior_artifact",
+              "knowledge",
+              "owner_feedback",
+              "outcome_lesson"
+            ]
+          },
+          "authority": {
+            "enum": [
+              "trusted_director",
+              "trusted_project_guidance",
+              "trusted_manifest",
+              "untrusted_source_data"
+            ]
+          },
+          "reference": {
+            "type": "string",
+            "minLength": 1
+          },
+          "version": {
+            "type": "string",
+            "minLength": 1
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "content": {
+            "type": "string"
+          },
+          "truncated": {
+            "type": "boolean"
+          },
+          "full_length": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "applicability": {
+            "enum": [
+              "applicable",
+              "inapplicable"
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "authority",
+          "reference",
+          "version",
+          "sha256",
+          "content",
+          "truncated",
+          "full_length",
+          "applicability",
+          "reason"
+        ],
+        "additionalProperties": false
+      },
+      "maxItems": 128
+    },
+    "discovery": {
+      "type": "object",
+      "properties": {
+        "root": {
+          "type": "string",
+          "minLength": 1
+        },
+        "feedback_projects": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "feedback_count": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "root",
+        "feedback_projects",
+        "feedback_count"
+      ],
+      "additionalProperties": false
+    },
+    "predecessor_fingerprints": {
+      "type": "object",
+      "maxProperties": 128,
+      "additionalProperties": {"type": "string", "pattern": "^[a-f0-9]{64}$"}
+    },
+    "limitations": {
+      "type": "string",
+      "minLength": 1
+    }
+  },
+  "required": [
+    "version",
+    "stage",
+    "context_hash",
+    "project",
+    "profile",
+    "items",
+    "discovery",
+    "limitations"
+  ],
+  "allOf": [{"if": {"properties": {"version": {"const": "1.1"}}}, "then": {"required": ["predecessor_fingerprints"]}}],
+  "additionalProperties": false
+}
