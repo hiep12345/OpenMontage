@@ -297,5 +297,3 @@ def test_missing_or_malformed_technical_file_fails_closed(reviewed):
     assert not evaluate_review(project, video, review)["ready"]
     technical.unlink()
     assert not evaluate_review(project, video, review)["ready"]
-
-
