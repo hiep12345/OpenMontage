@@ -2,9 +2,10 @@
 
 ## When to Use
 
-Use Remotion for advanced video composition from Phase 3 onward — anywhere that requires
-React-based scene assembly, parametric templates, animated overlays, transitions, or
-data-driven batch rendering. For simple cuts, burns, and encodes, prefer FFmpeg directly.
+Use this guide when Remotion is the authorized composition runtime, or when
+evaluating it for an unresolved runtime choice involving React scene assembly,
+parametric templates, animated overlays, transitions, or data-driven batches.
+Standalone cuts, burns, and encodes can use FFmpeg when appropriate to the task.
 
 ## Relationship to Remotion Agent Skills
 
@@ -13,19 +14,26 @@ Remotion API usage — imports, timing, animation constraints, code patterns.
 **This file** teaches how OpenMontage uses Remotion — which compositions map to pipeline
 stages, how artifacts flow in, and how renders are triggered.
 
-## Remotion-First Routing
+## Runtime selection and Remotion composition
 
-**Remotion is the DEFAULT composition engine for ALL final renders when available.**
+Follow `AGENT_GUIDE.md` → "Composition Runtime Selection". Preserve an exact
+authorized `render_runtime`; compare task-suitable available alternatives only
+when the choice is unresolved. Remotion availability does not override an
+authorized HyperFrames or FFmpeg choice.
+
+When Remotion is selected, it supports simple video cuts as well as rich scenes.
 It handles video clips (via `<OffthreadVideo>`), still images, animated scenes,
 component types, transitions, and mixed content — all in a single React-based
 render pass.
 
-FFmpeg is the **fallback** — used only when Remotion is unavailable, or for
-simple standalone operations that don't benefit from React rendering.
+An unavailable or failed selected runtime blocks rendering. Changing runtime
+requires user authorization and an appended `render_runtime_selection` decision;
+the log alone does not supply authorization. Preserve proposal/asset approval,
+provider, budget, checkpoint and publication boundaries.
 
 | Use Case | Backend | Why |
 |----------|---------|-----|
-| Final video render (any content type) | **Remotion** | Default for all compositions |
+| Final video render with authorized Remotion runtime | **Remotion** | Preserve the selected runtime |
 | Video clips + animated stills + text cards | **Remotion** | Mixed content in one pass |
 | Video-only cuts with transitions | **Remotion** | Native `<OffthreadVideo>` + transitions |
 | Animated diagrams/text cards | **Remotion** | Frame-by-frame control |
@@ -35,12 +43,12 @@ simple standalone operations that don't benefit from React rendering.
 | Simple trim, concat (no composition) | FFmpeg | Instant, no Node dependency |
 | Subtitle burn-in (standalone, post-hoc) | FFmpeg | Only for adding subs to an already-rendered video without re-rendering |
 | Face enhance, color grade | FFmpeg | Filter-based, deterministic |
-| Remotion unavailable | FFmpeg | Automatic fallback |
+| Selected Remotion unavailable | Blocked | Repair setup or resolve an authorized runtime change |
 
-**Note:** The `render` operation auto-routes to Remotion by default. FFmpeg is
-only selected when Remotion is not installed or the agent explicitly calls
-`operation='compose'` for standalone operations. The agent can also write custom
-Remotion compositions on the fly via the capability-extension protocol when no
+The `render` operation routes by `edit_decisions.render_runtime`, carried from
+the proposal. Explicit `render_runtime="ffmpeg"` and standalone
+`operation='compose'` use FFmpeg. When Remotion is authorized, the agent can also
+write custom compositions through the capability-extension protocol when no
 existing composition covers the layout (e.g., custom PiP, split-screen).
 
 ## Supported Scene Types (Cut Types)
@@ -198,7 +206,8 @@ npx remotion render Explainer \
 
 **Note:** Do NOT specify `src/index.ts` as entry point — Remotion auto-discovers compositions. The composition name is `Explainer` (not `ExplainerVideo`).
 
-In Python, invoke via `subprocess` from `video_compose.py` when `backend="remotion"`.
+In Python, `video_compose.py` invokes the selected Remotion runtime via `subprocess`
+when `edit_decisions.render_runtime="remotion"`.
 
 ### Media Profile Mapping
 
