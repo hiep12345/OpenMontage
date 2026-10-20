@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Evidence-bound video review",
+  "type": "object",
+  "required": ["version", "reviewed_at", "reviewer", "video", "context", "checks", "findings"],
+  "additionalProperties": false,
+  "properties": {
+    "version": {"const": "1.0"},
+    "reviewed_at": {"type": "string", "minLength": 1},
+    "reviewer": {"type": "string", "minLength": 1},
+    "video": {"$ref": "#/$defs/file"},
+    "context": {"type": "array", "items": {"$ref": "#/$defs/file"}},
+    "checks": {"type": "array", "minItems": 10, "items": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "status", "method", "observation", "time_ranges", "evidence"],
+      "properties": {
+        "id": {"enum": ["technical", "brief_fit", "story_clarity", "spatial_continuity", "action_physics", "product_fidelity", "edit_continuity", "speech_sync", "subtitle_readability", "audio_quality"]},
+        "status": {"enum": ["PASS", "FAIL", "NOT_TESTED"]},
+        "method": {"enum": ["not_performed", "technical_analysis", "rendered_frames", "video_playback", "source_comparison", "audio_listening", "multimodal_video", "multimodal_audio_video", "ASR"]},
+        "observation": {"type": "string", "minLength": 1},
+        "time_ranges": {"type": "array", "items": {"type": "array", "minItems": 2, "maxItems": 2, "items": {"type": "number", "minimum": 0}}},
+        "evidence": {"type": "array", "items": {"$ref": "#/$defs/file"}}
+      }
+    }},
+    "findings": {"type": "array", "items": {
+      "type": "object", "additionalProperties": false,
+      "required": ["check_id", "severity", "status", "start_seconds", "end_seconds", "observation", "proposed_fix"],
+      "properties": {
+        "check_id": {"type": "string"},
+        "severity": {"enum": ["blocker", "suggestion"]},
+        "status": {"enum": ["open", "fixed"]},
+        "start_seconds": {"type": "number", "minimum": 0},
+        "end_seconds": {"type": "number", "minimum": 0},
+        "observation": {"type": "string", "minLength": 1},
+        "proposed_fix": {"type": "string", "minLength": 1}
+      }
+    }}
+  },
+  "$defs": {"file": {
+    "type": "object", "required": ["path", "sha256"], "additionalProperties": false,
+    "properties": {"path": {"type": "string", "minLength": 1}, "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"}}
+  }}
+}

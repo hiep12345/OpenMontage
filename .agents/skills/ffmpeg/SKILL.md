@@ -283,7 +283,8 @@ Platform limits below are illustrative; verify the destination's current officia
 
 ### Twitter/X
 
-Twitter has strict limits: max 140s, 512MB, 1920x1200:
+Confirm the destination account's current duration, file-size and resolution
+limits before exporting. The example below is an encoding starting point:
 
 ```bash
 # Twitter-oriented encode (CRF does not guarantee a file-size ceiling)
@@ -302,9 +303,14 @@ ffmpeg -i out/video.mp4 \
 ffprobe -v error -show_entries format=duration,size -of csv=p=0 out/video-twitter.mp4
 ```
 
+The [FFmpeg option reference](https://ffmpeg.org/ffmpeg.html#Main-options) explains
+that `-fs` stops writing after its byte limit; it is not a full-duration encoding
+budget.
+
 ### LinkedIn
 
-LinkedIn prefers MP4 with AAC audio, max 10 minutes:
+Use the destination's current requirements for the chosen post type. This
+MP4/AAC example does not establish an account's upload limits:
 
 ```bash
 # LinkedIn optimized
@@ -352,16 +358,13 @@ ffmpeg -i out/video.mp4 -t 3 \
   out/preview-small.gif
 ```
 
-### Platform Requirements Quick Reference
+### Destination Checks
 
-| Platform | Max Resolution | Max Size | Max Duration | Audio |
-|----------|---------------|----------|--------------|-------|
-| YouTube | 8K | 256GB | 12 hours | AAC 48kHz |
-| Twitter/X | 1920x1200 | 512MB | 140s | AAC 44.1kHz |
-| LinkedIn | 4096x2304 | 5GB | 10 min | AAC 48kHz |
-| Instagram Feed | 1080x1350 | 4GB | 60s | AAC 48kHz |
-| Instagram Reels | 1080x1920 | 4GB | 90s | AAC 48kHz |
-| TikTok | 1080x1920 | 287MB | 10 min | AAC |
+Before exporting for a selected destination, verify its current official limits
+for the actual account, post type and upload route. Check duration, byte size,
+resolution/aspect ratio and supported video/audio codecs. After encoding, probe
+the complete output and compare its duration with the source. Example settings
+in this guide are not platform eligibility or publishing approval.
 
 ### Batch Export for All Platforms
 
