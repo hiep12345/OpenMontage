@@ -8,7 +8,7 @@ Routing is driven by `edit_decisions.render_runtime` (locked at proposal):
 
 - `remotion`   → React-based frame-accurate render via `npx remotion render`.
                  Handles the existing scene-component stack, word-level captions,
-                 TalkingHead/CinematicRenderer. Current default.
+                 TalkingHead/CinematicRenderer when selected.
 - `hyperframes` → HTML/CSS/GSAP render via `hyperframes_compose`.
                  Handles kinetic typography, product promos, website-to-video,
                  registry blocks. Added in the parallel-runtime initiative.
@@ -87,8 +87,8 @@ class VideoCompose(BaseTool):
                 "enum": ["compose", "render", "remotion_render", "burn_subtitles", "overlay", "encode"],
                 "description": (
                     "compose: low-level concat cuts + audio + subtitles. "
-                    "render: high-level — resolves asset IDs, auto-routes to Remotion "
-                    "for images/animations or FFmpeg for video-only. Preferred for compose-director. "
+                    "render: high-level — resolves asset IDs, honors edit_decisions.render_runtime "
+                    "(remotion, hyperframes, or ffmpeg). Preferred for compose-director. "
                     "remotion_render: render via Remotion (Node.js). "
                     "burn_subtitles: burn subtitle file into existing video. "
                     "overlay: composite overlays onto base video. "
@@ -526,7 +526,7 @@ class VideoCompose(BaseTool):
                         success=False,
                         error=(
                             f"Still image '{source.name}' in cuts. "
-                            "Use operation='render' (auto-routes to Remotion) "
+                            "Use operation='render' with the authorized render_runtime "
                             "or operation='remotion_render' for compositions "
                             "with images, animations, or component scenes."
                         ),
@@ -1387,44 +1387,13 @@ class VideoCompose(BaseTool):
         return theme if theme else None
 
     def _needs_remotion(self, cuts: list[dict]) -> bool:
-        """Determine whether Remotion should handle this composition.
+        """Check availability after Remotion has already been selected.
 
-        Remotion is the DEFAULT composition engine when available.  It handles
-        video clips (via <OffthreadVideo>), still images, animated scene types,
-        component types, transitions, and mixed content — all in a single
-        React-based render pass.
-
-        Returns False (i.e. use FFmpeg) only when Remotion is not
-        available. For `operation="render"` the governance default is
-        Remotion-first: the renderer family was chosen earlier, and the
-        tool should preserve that decision instead of silently
-        downgrading to FFmpeg.
-
-        This "Remotion-first" policy means mixed content (video clips +
-        animated stills + text cards) is always composed in Remotion, which
-        can embed <OffthreadVideo> alongside React components natively.
+        Remotion supports simple video cuts as well as rich scenes. Cut content
+        does not change the authorized runtime; False means rendering is blocked,
+        never permission to substitute FFmpeg. Keep the cuts argument for callers.
         """
-        # If Remotion isn't installed, fall back to FFmpeg
-        if not self._remotion_available():
-            return False
-
-        # Any rich content → Remotion (fast path, catches the obvious cases)
-        for cut in cuts:
-            source = cut.get("source", "")
-            if source and Path(source).suffix.lower() in self._IMAGE_EXTENSIONS:
-                return True
-            if cut.get("type") in self._REMOTION_SCENE_TYPES:
-                return True
-            if cut.get("animation") or cut.get("transition_in") or cut.get("transition_out"):
-                return True
-            transform = cut.get("transform", {})
-            if transform and transform.get("animation"):
-                return True
-
-        # Even for pure-video cuts, default to Remotion — it handles video
-        # clips natively via <OffthreadVideo> and gives us transitions,
-        # overlays, and profile scaling for free.
-        return True
+        return self._remotion_available()
 
     def _pre_compose_validation(
         self,
@@ -1534,13 +1503,10 @@ class VideoCompose(BaseTool):
         This is the primary entry point for the compose-director skill.
         It resolves asset IDs and routes to the composition engine:
 
-        - **Remotion (default):** Used for all compositions when available —
-          video clips, images, animated scenes, component types, mixed content.
-          Remotion embeds video via <OffthreadVideo> and handles transitions,
-          overlays, and profile scaling natively.
-        - **FFmpeg (fallback):** Used only when Remotion is unavailable, or
-          when the agent explicitly calls operation='compose' for simple
-          trim/concat operations.
+        edit_decisions.render_runtime selects Remotion, HyperFrames, or FFmpeg.
+        An unavailable selected runtime blocks rendering instead of substituting
+        another engine. Direct operation='compose' remains the FFmpeg path for
+        standalone trim/concat operations.
 
         The agent should pass edit_decisions, asset_manifest, and optionally
         profile, subtitle_path, audio_path, and options.
@@ -1695,12 +1661,10 @@ class VideoCompose(BaseTool):
                     error=(
                         f"Remotion render failed for renderer_family={renderer_family!r}. "
                         f"Underlying error: {render_result.error}\n\n"
-                        f"This composition requires Remotion (images, text cards, animations). "
-                        f"Options:\n"
-                        f"  1. Fix Remotion setup (cd remotion-composer && npm install)\n"
-                        f"  2. Re-run with operation='compose' for FFmpeg-only (video cuts only)\n"
-                        f"  3. Approve a degraded FFmpeg render (still images → Ken Burns)\n\n"
-                        f"Per governance: renderer downgrade requires user approval."
+                        f"The authorized runtime is Remotion. Fix its setup or "
+                        f"composition before retrying. A runtime change requires "
+                        f"user authorization and an appended render_runtime_selection "
+                        f"decision before dependent rendering."
                     ),
                 )
             if inputs.get("audio_path"):
@@ -1709,27 +1673,16 @@ class VideoCompose(BaseTool):
                     return mux_result
                 render_result.data["has_mixed_audio"] = True
         else:
-            # --- FFmpeg fallback: only when Remotion is unavailable ---
-            options = inputs.get("options", {})
-            subtitle_burn = options.get("subtitle_burn", True)
-
-            # Resolve subtitle_path from edit_decisions if not provided
-            subtitle_path = inputs.get("subtitle_path")
-            if subtitle_burn and not subtitle_path:
-                ed_subs = edit_decisions.get("subtitles", {})
-                if ed_subs.get("enabled") and ed_subs.get("source"):
-                    subtitle_path = ed_subs["source"]
-
-            # Build compose inputs
-            compose_inputs = dict(inputs)
-            compose_inputs["edit_decisions"] = dict(edit_decisions, cuts=resolved_cuts)
-            compose_inputs["output_path"] = str(output_path)
-            if subtitle_path:
-                compose_inputs["subtitle_path"] = subtitle_path
-            if profile:
-                compose_inputs["profile"] = profile
-
-            render_result = self._compose(compose_inputs)
+            return ToolResult(
+                success=False,
+                error=(
+                    "render_runtime='remotion' was selected, but Remotion is "
+                    "unavailable. Rendering is blocked; no other runtime was used. "
+                    "Fix the Remotion setup or obtain authorization for a runtime "
+                    "change and append a render_runtime_selection decision before "
+                    "dependent rendering."
+                ),
+            )
 
         # --- Post-render: mandatory final self-review ---
         if render_result.success and output_path.exists():

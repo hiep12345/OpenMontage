@@ -40,23 +40,24 @@ These upstream skills are HF-workflow-specific and would compete with or duplica
 
 ## Re-sync instructions
 
-To re-vendor from a newer upstream:
+The local `hyperframes/SKILL.md` description and **Project scope** section narrow
+the upstream universal read-first/default behavior. They activate this router
+after user or approved project selection and preserve bound runtime, provider,
+aspect ratio, music and spend choices. Keep this OpenMontage integration patch
+when refreshing upstream authoring references.
 
-```bash
-cd C:/Users/ishan/Documents/hyperframes
-git pull --ff-only origin main
-# Then in OpenMontage:
-cd /c/Users/ishan/Documents/OpenMontage
-HF=C:/Users/ishan/Documents/hyperframes
-for d in hyperframes hyperframes-cli hyperframes-registry hyperframes-core \
-         hyperframes-creative hyperframes-media hyperframes-animation \
-         media-use motion-graphics remotion-to-hyperframes \
-         music-to-video website-to-video; do
-  rm -rf ".agents/skills/$d"
-  cp -r "$HF/skills/$d" ".agents/skills/$d"
-done
-# Then update vendor commit/tag/date at the top of this file.
-```
+For an authorized refresh, stage the newer upstream skills in a separate
+temporary directory. Review the diff against the recorded vendored revision and
+the current local files before applying changes. Merge useful upstream changes
+and retain or reapply the scoped description and Project scope section; do not
+replace the local directories blindly. Keep the intentionally excluded workflows
+excluded unless the task authorizes their adoption, then update the vendor
+commit/tag/date above to match the actual imported source.
+
+Review the resulting router against `AGENT_GUIDE.md` → "Composition Runtime
+Selection" and run the relevant instruction/runtime contract checks. CLI
+`hyperframes init` and `hyperframes skills update` can refresh installed skills
+too; inspect their changes and preserve this local scope before using the result.
 
 ## Future automation
 
