@@ -93,7 +93,7 @@ material.map = texture;
 const texture = loader.load("texture.jpg", (tex) => {
   // Color space (important for color accuracy)
   tex.colorSpace = THREE.SRGBColorSpace; // For color/albedo maps
-  // tex.colorSpace = THREE.LinearSRGBColorSpace;  // For data maps (normal, roughness)
+  // tex.colorSpace = THREE.NoColorSpace; // For data maps (normal, roughness); default
 
   // Wrapping
   tex.wrapS = THREE.RepeatWrapping;
