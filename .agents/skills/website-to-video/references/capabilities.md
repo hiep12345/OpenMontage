@@ -86,7 +86,7 @@ The runtime registers these adapters in order; each implements `discover()` / `s
 ### GSAP plugins (documented patterns)
 
 - **TextPlugin** — text mutation in `tl.call` (skills/gsap/references/effects.md)
-- **MotionPathPlugin** — curve-constrained tweens (skills/hyperframes/references/techniques.md)
+- **MotionPathPlugin** — curve-constrained tweens (.agents/skills/hyperframes-animation/techniques.md)
 - **CustomEase** — bezier eases imported from Remotion-style timing
 - **ScrollTrigger / Flip / SplitText / Draggable / Inertia / Observer / ScrambleText / CustomWiggle / CustomBounce / ScrollSmoother / GSDevTools** — work natively if loaded and tweens are on the registered paused timeline, but no special HyperFrames adapter
 - Producer injects ScrollTrigger CDN automatically when needed (packages/producer/src/services/htmlCompiler.ts)
@@ -142,7 +142,7 @@ You can also **write custom GLSL shaders from scratch** — any fragment shader 
 
 ## 4. CSS scene transitions (30+ named patterns)
 
-Documented in skills/hyperframes/references/transitions/ across 14 category files. All GSAP-driven, none mixable with shader transitions in same composition.
+Documented in .agents/skills/hyperframes-animation/transitions/ across 14 category files. All GSAP-driven, none mixable with shader transitions in same composition.
 
 ### By category
 
@@ -287,7 +287,7 @@ EQ bars, spectrum UI, generic waveforms, note clip-art, generic particles, rainb
 
 ## 8. HTML-in-canvas
 
-Documented in skills/hyperframes/references/html-in-canvas-patterns.md (504 lines).
+Documented in .agents/skills/hyperframes-animation/adapters/html-in-canvas-patterns.md (504 lines).
 
 ### Capability
 
@@ -335,7 +335,7 @@ window.addEventListener("hf-seek", (e) => {
 
 ## 10. SVG / canvas / variable fonts (other authored techniques)
 
-(From skills/hyperframes/references/techniques.md)
+(From .agents/skills/hyperframes-animation/techniques.md)
 
 | Technique                | Mechanism                                                                            |
 | ------------------------ | ------------------------------------------------------------------------------------ |
@@ -661,7 +661,9 @@ Control bridge actions: play, pause, seek, set-muted, set-playback-rate, enable-
 
 ---
 
-## 22. Skills available — 16
+## 22. Upstream skill inventory — not local availability
+
+The table below describes upstream packages. Presence in this list does not mean a package is installed or callable in OpenMontage. Use the selected local package and verify actual tool/runtime support; do not install excluded workflows to satisfy this inventory.
 
 | Skill                     | Purpose                                                                 |
 | ------------------------- | ----------------------------------------------------------------------- |
@@ -684,23 +686,16 @@ Control bridge actions: play, pause, seek, set-muted, set-playback-rate, enable-
 
 ---
 
-## 23. References inventory (skills/hyperframes/references/)
+## 23. Current local reference routes
 
-16 reference docs covering:
+Read only the selected implementation topic:
 
-- text-effects.md — 24 named text animation effects (per-character, per-word, per-line, whole) — vocabulary reference for the separate `pixel-point/animate-text` skill (load it via `npx skills add pixel-point/animate-text` or `/animate-text`). Specs live in that upstream skill, not in this repo.
-- transitions.md + transitions/catalog.md + 14 category subfiles
-- css-patterns.md (marker patterns)
-- dynamic-techniques.md (caption animation)
-- motion-principles.md (easing as emotion, choreography)
-- typography.md (banned-font list, pairing rules, variable fonts)
-- narration.md (script + VO pacing)
-- captions.md (caption authoring contract)
-- audio-reactive.md (band mappings + extraction)
-- transcript-guide.md (whisper, Groq, OpenAI workflows)
-- techniques.md (the big technique catalog — SVG, canvas 2D, 3D, kinetic, lottie, variable fonts, MotionPath, audio-reactive)
-- beat-direction.md, design-picker.md, prompt-expansion.md, video-composition.md
-- visual-styles.md (8 named visual styles: Swiss Pulse, Velvet Standard, Deconstructed, Maximalist Type, Data Drift, Soft Signal, Folk Frequency, Shadow Cut — available via the `visual-style` skill)
+- [Animation techniques](../../hyperframes-animation/techniques.md), [atomic motion rules](../../hyperframes-animation/rules-index.md), [transition catalog](../../hyperframes-animation/transitions/catalog.md) and [HTML-in-Canvas](../../hyperframes-animation/adapters/html-in-canvas-patterns.md).
+- [Creative references](../../hyperframes-creative/SKILL.md): composition, typography, narration and beat direction.
+- [Media references](../../hyperframes-media/SKILL.md): selected audio, transcription and captions.
+- [Text animation adapter](../../hyperframes-animation/adapters/animate-text.md): local inline motion is sufficient for simple text; the external catalog is not bundled.
+
+The older upstream capability examples in this document are design research, not proof of installed features, commands or external service authorization.
 
 ---
 

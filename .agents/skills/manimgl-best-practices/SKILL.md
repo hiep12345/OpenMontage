@@ -46,13 +46,13 @@ Read individual rule files for detailed explanations and code examples:
 
 ## Working Examples
 
-Complete, tested example files demonstrating common patterns:
+Selected bundled ManimGL examples; inspect and validate the chosen scene in the actual runtime before use. These pointers do not attest to a successful render:
 
-- [examples/basic_animations.py](examples/basic_animations.py) - Basic shapes, text, and animations
-- [examples/math_visualization.py](examples/math_visualization.py) - LaTeX equations and mathematical content
-- [examples/graph_plotting.py](examples/graph_plotting.py) - Axes, functions, and graphing
-- [examples/3d_visualization.py](examples/3d_visualization.py) - 3D scenes with camera control and surfaces
-- [examples/updater_patterns.py](examples/updater_patterns.py) - Dynamic animations with updaters
+- [examples/equation_transforms.py](examples/equation_transforms.py) - Step-by-step mathematical derivations
+- [examples/vector_fields.py](examples/vector_fields.py) - Vector fields and flow visualization
+- [examples/three_d_surfaces.py](examples/three_d_surfaces.py) - 3D surfaces and camera movement
+
+Do not substitute similarly named Manim Community Edition examples: their imports, APIs and CLI belong to another engine.
 
 ## Scene Templates
 

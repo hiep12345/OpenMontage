@@ -3,13 +3,13 @@ name: website-to-video
 description: Turn an authorized website capture into a video when HyperFrames and this site-showcase workflow are selected. Preserve the approved assets, brand, runtime and production gates; generic website/video requests use the project router.
 ---
 
-> Use `/media-use` only if the HeyGen catalog is the selected asset source. Preserve supplied/approved assets and provenance.
+> Use [media-use](../media-use/SKILL.md) only if the HeyGen catalog is the selected asset source. Preserve supplied/approved assets and provenance.
 
 # Website to HyperFrames
 
 Capture a website, then produce a professional video from it.
 
-> **Confirm the route before Step 0.** This skill makes a video _of / from a general site_. If the user is really **marketing / launching / promoting a product** (even from this URL, even "promo for our site") → `/product-launch-video`. A **topic explainer with no site** → `/faceless-explainer`; a **GitHub PR** → `/pr-to-video`; **re-cutting / recoloring / reordering an existing video file** → out of scope. Routed here on a vague "make a video", or unsure launch-vs-general-site? **Read `/hyperframes` first** (full routing table + § What HyperFrames cannot do).
+> **Confirm the selected route before Step 0.** Use the [OpenMontage router](../../../AGENTS.md) for an unresolved website, product, explainer or source-footage request. This package supports an approved website capture/showcase using HyperFrames. Other upstream workflows are intentionally excluded from this checkout; their slash-command names are not callable local routes. Preserve the approved runtime, provider, assets, music, budget and manifest approvals. Read the [runtime selector](../../../skills/meta/animation-runtime-selector.md) only when runtime selection is unresolved.
 
 Users say things like:
 
@@ -19,7 +19,7 @@ Users say things like:
 
 The workflow has 7 steps. Each produces an artifact that gates the next. By default it's collaborative — gates marked 💬 stop and ask the user. If the user signals autonomous mode ("decide for me", "surprise me"), 💬 user-preference gates are skipped; see step-2-brief.md for how that propagates.
 
-**Autonomous mode is NOT "skip all gates."** Auto mode covers user-preference questions (TTS provider, voice, color emphasis, beat count, music yes/no, captions yes/no — where the agent decides on the user's behalf). It does NOT cover quality-verification gates. The following remain non-skippable in auto mode:
+**Autonomous mode is NOT "skip all gates."** Choose only preferences actually delegated within the current brief. Reuse bound voice, music, captions, provider and budget choices; general autonomy does not override manifest approvals, change providers or authorize extra spending. The following quality checks still apply:
 
 - Asset Audit (Step 3) — viewing contact sheets and justifying USE/SKIP for each asset
 - Relevant beat source and rendered-state review (Step 5)
@@ -81,7 +81,7 @@ Write the storyboard concept-first: message → narrative arc → beats that ser
 
 **Read:** [references/step-4-vo.md](references/step-4-vo.md)
 
-If Step 2 said no narration — ask about background music, then skip to Step 5. Otherwise: ask the user which TTS provider (HeyGen TTS, ElevenLabs, or Kokoro), generate audio, transcribe, map timestamps to beats. Then ask about captions.
+Reuse the approved narration, music, provider, voice and caption choices. For no narration, carry approved beat timings into Step 5 without TTS or transcription. Otherwise use the authorized available provider and actual audio timings. Ask only about a material unresolved choice; an unavailable provider does not authorize a fallback or additional paid auditions.
 
 **Gate:** Either (a) no narration was requested and storyboard has manual beat timings, or (b) `narration.wav` + `transcript.json` exist and beat timings updated with real durations.
 
@@ -139,7 +139,7 @@ Beat count is not in this table intentionally — it should come from the storyb
 | [step-0-capture.md](references/step-0-capture.md)                                  | Step 0 — capture, understand the brand and product, write strategy-first site summary                                                          |
 | [step-1-design.md](references/step-1-design.md)                                    | Step 1 — write DESIGN.md brand cheat sheet (5 sections, 250-350 lines; 50-line fast-path for billboard-style social ads)                       |
 | [step-2-brief.md](references/step-2-brief.md)                                      | Step 2 — align on message, narrative arc, audience with user                                                                                   |
-| [capabilities.md](references/capabilities.md)                                      | Steps 2 & 5 — full inventory of what HyperFrames can do (24 sections). Scan the TOC during the brief, deep-dive specific sections during build |
+| [capabilities.md](references/capabilities.md)                                      | Steps 2 & 5 — upstream capability examples; confirm selected features against the installed runtime and current local skill references |
 | [step-3-storyboard.md](references/step-3-storyboard.md)                            | Step 3 — storyboard + script (combined) with user review gate                                                                                  |
 | [step-4-vo.md](references/step-4-vo.md)                                            | Step 4 — TTS provider choice, generation, timing                                                                                               |
 | [step-5-build.md](references/step-5-build.md)                                      | Step 5 — build index.html + compositions                                                                                                       |
