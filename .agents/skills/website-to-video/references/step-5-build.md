@@ -292,10 +292,11 @@ Each worker reads [beat-builder-guide.md](beat-builder-guide.md) — it has ever
 ```
 Build the composition for Beat N. Save to compositions/beat-N-name.html.
 
-FIRST: Locate and read the beat-builder guide. Your CWD is the project directory, so
-the skill lives outside it — run this to find it:
+FIRST: Read the relevant sections of the beat-builder guide at the exact absolute
+path supplied by the main agent from its loaded website-to-video package. Do not
+search HOME or select another installed copy.
 
-  find "$HOME" -path '*/website-to-video/references/beat-builder-guide.md' -maxdepth 10 2>/dev/null | head -1
+  [main agent supplies the resolved path to references/beat-builder-guide.md]
 
 Read its relevant build and validation sections for your assigned beat; it has easing vocabulary,
 and file references. Follow its workflow exactly:
