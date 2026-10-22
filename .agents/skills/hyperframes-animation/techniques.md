@@ -154,12 +154,17 @@ Words appear one-by-one, synced to transcript.json timestamps. The core techniqu
   var slides = [80, 60, 50, 25, 12]; // horizontal slide decay (px)
 
   document.querySelectorAll(".word").forEach(function (word, i) {
-    tl.from(
+    tl.fromTo(
       word,
       {
         x: slides[i],
         y: 14,
         opacity: 0,
+      },
+      {
+        x: 0,
+        y: 0,
+        opacity: 1,
         duration: 0.35,
         ease: "power2.out",
       },
