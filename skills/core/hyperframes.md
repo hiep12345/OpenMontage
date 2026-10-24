@@ -31,6 +31,12 @@ HTML/GSAP authoring method for the existing atelier `render_existing` path,
 including matched-photo reveals, opaque editorial cuts and duration adaptation.
 It does not change runtime authority or load for unrelated animation tasks.
 
+For an approved app/product promotion or UI-motion concept that needs a more
+concrete brief, optionally read
+[App and UI motion patterns](../creative/prompting/app-ui-motion-patterns.md).
+It adapts two attributed community examples to the selected run; it adds no
+runtime, model requirement or extra production gate.
+
 ---
 
 ## When OpenMontage should pick HyperFrames (vs Remotion vs FFmpeg)
