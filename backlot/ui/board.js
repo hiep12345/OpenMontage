@@ -661,6 +661,104 @@ function renderActivity(s) {
 // storyboard filmstrip
 // ---------------------------------------------------------------------------
 
+const OBSERVATION_REASONS = {
+  ABSENT: "store not found",
+  POLICY_MISSING: "policy not recorded",
+  SQLITE_SIDECAR: "SQLite sidecar present; retry after the writer settles",
+  WAL_MODE: "WAL database; current state cannot be read safely here",
+  CONCURRENT_CHANGE: "source changed during observation; retry after the writer settles",
+  UNSUPPORTED_SCHEMA: "store schema is unsupported",
+  UNSUPPORTED_VERSION: "policy or receipt version is unsupported",
+  UNSUPPORTED_STATUS: "request status is unsupported",
+  UNSUPPORTED_RECORD: "journal record type is unsupported",
+  UNSUPPORTED_COST_UNIT: "cost unit is unsupported",
+  OWNER_MISMATCH: "store ownership does not match this project",
+  DIGEST_MISMATCH: "stored record digest does not match",
+  LINKED_SOURCE: "linked source is not read",
+  UNSAFE_SOURCE: "source path is outside the supported project scope",
+  SIZE_LIMIT: "source exceeds the bounded read limit",
+  MALFORMED: "store is malformed or unreadable",
+};
+
+function observedCostText(cost) {
+  if (!cost || !Number.isFinite(cost.amount)) return "cost UNKNOWN";
+  return `${cost.amount.toLocaleString(undefined, { maximumFractionDigits: 6 })} ${cost.unit === "usd" ? "USD" : "credits"}`;
+}
+
+function recordedChecksText(checks) {
+  if (!checks) return "review UNKNOWN — no recorded checks";
+  const total = Object.values(checks).reduce((sum, n) => sum + n, 0);
+  if (!total) return "review UNKNOWN — no recorded checks";
+  return ["PASS", "FAIL", "NOT_TESTED"].map((key) => `${checks[key] || 0} ${key}`).join(" · ");
+}
+
+function observationStoreHeading(title, store) {
+  return el("div", { class: "observation-store-head" },
+    el("h3", {}, title),
+    el("span", { class: "observation-state" }, store?.status || "UNKNOWN"));
+}
+
+function renderProductionObservation(s) {
+  const observation = s.production_observation;
+  if (!observation) return null; // Backwards-compatible with older state payloads.
+  const body = el("div", { class: "panel-body observation-body" });
+  body.append(el("p", { class: "observation-limit" },
+    "Recorded store data only. Media, review truth and current evidence freshness are NOT REVALIDATED."));
+  body.append(el("p", { class: "observation-provenance" }, `Observed ${observation.observed_at || "UNKNOWN"}`));
+  if (replay) body.append(el("p", { class: "observation-limit" }, "Current stores — this panel is not replay history."));
+  for (const [key, title] of [["generation", "Generation requests"], ["stage_context", "Stage context receipts"]]) {
+    const store = observation[key];
+    const section = el("section", { class: "observation-store", "aria-label": title });
+    section.append(observationStoreHeading(title, store));
+    if (!store || store.status !== "RECORDED") {
+      section.append(el("p", { class: "observation-limit" },
+        `UNKNOWN — ${OBSERVATION_REASONS[store?.reason] || "store unavailable"}.`));
+      body.append(section);
+      continue;
+    }
+    const records = Array.isArray(store.records) ? store.records : [];
+    if (key === "generation") {
+      const costs = Object.entries(store.observed_costs || {});
+      section.append(el("div", { class: "observation-costs" },
+        ...(costs.length ? costs.map(([unit, amount]) => el("span", {}, observedCostText({ unit, amount })))
+          : [el("span", {}, "Observed cost UNKNOWN — no recorded amounts")])));
+      section.append(el("p", { class: "observation-limit" },
+        `Observed amounts: ${store.cost_scope || "shown requests only"}; credits and USD are separate. `,
+        `${store.submitted_cost_unknown || 0} submitted request(s) have unknown cost. Derived copies are excluded from totals.`));
+    }
+    const details = el("details", { class: "observation-details" },
+      el("summary", {}, `${records.length} ${key === "generation" ? "request(s)" : "receipt(s)"} shown${store.truncated ? " · PARTIAL — bounded recent rows only" : ""}`));
+    if (!records.length) details.append(el("p", { class: "observation-limit" }, "No records in this projection; acceptance UNKNOWN."));
+    for (const record of records) {
+      const row = el("div", { class: "observation-row" });
+      if (key === "generation") {
+        row.append(el("div", { class: "observation-row-head" },
+          el("b", {}, record.scene_id),
+          el("span", { class: "observation-state" }, `Recorded ${record.status}`)),
+        el("div", { class: "observation-id" }, record.request_id),
+        el("div", {}, observedCostText(record.observed_cost), record.derived ? " · derived copy" : ""),
+        el("div", { class: "observation-limit" }, recordedChecksText(record.review_checks)));
+        if (record.source) row.append(el("div", { class: "observation-source" },
+          `Source: ${record.source.path}`, el("span", {}, `SHA256 ${record.source.sha256}`)));
+        else row.append(el("div", { class: "observation-limit" }, "Canonical source UNKNOWN — no recorded artifact"));
+      } else {
+        row.append(el("div", { class: "observation-row-head" }, el("b", {}, record.stage), el("span", {}, record.kind)),
+          el("div", { class: "observation-limit" }, record.kind === "review" ? recordedChecksText(record.checks) : "Recorded application; current binding NOT REVALIDATED"));
+      }
+      details.append(row);
+    }
+    section.append(details);
+    if (store.source) section.append(el("p", { class: "observation-provenance" },
+      `${store.source.file} · modified ${store.source.modified_at} · stable read`,
+      el("span", {}, `SHA256 ${store.source.sha256}`)));
+    body.append(section);
+  }
+  body.append(el("p", { class: "observation-limit" }, "Independent file reads, not an atomic production snapshot. WAL or concurrent changes remain UNKNOWN."));
+  return el("section", { class: "panel production-observation", "aria-label": "Production observation" },
+    el("div", { class: "panel-head" }, el("h2", {}, "Production observation"),
+      el("span", { class: "meta" }, observation.status || "UNKNOWN")), body);
+}
+
 function sceneLabel(id) {
   // "sc4" → "SC 04", "scene-11" → "SC 11", anything else → uppercased id
   const m = String(id).match(/(\d+)\s*$/);
@@ -1072,6 +1170,8 @@ function render() {
   const main = el("div", { class: "main-col" });
   const approvalReview = renderApprovalReview(s);
   if (approvalReview) main.append(approvalReview);
+  const productionObservation = renderProductionObservation(state);
+  if (productionObservation) main.append(productionObservation);
   const script = renderScriptCard(s);
   if (script) main.append(script);
   const aside = el("aside", {});
@@ -1086,7 +1186,7 @@ function render() {
   const found = renderFoundMedia(s);
   const renders = renderRenders(s);
 
-  if (approvalReview || script || decisions || activity) {
+  if (productionObservation || approvalReview || script || decisions || activity) {
     for (const section of [storyboard, found, renders]) {
       if (section) main.append(section);
     }

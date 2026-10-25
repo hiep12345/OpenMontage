@@ -15,6 +15,7 @@ from typing import Any, Optional
 
 from lib.events import read_events
 from lib.paths import PROJECTS_DIR, REPO_ROOT  # single source of truth (env-overridable)
+from backlot.production_state import load_production_observation
 
 MEDIA_IMAGE_EXT = {".png", ".jpg", ".jpeg", ".webp", ".gif", ".svg"}
 MEDIA_VIDEO_EXT = {".mp4", ".webm", ".mov"}
@@ -651,6 +652,7 @@ def load_board_state(project_dir: Path) -> dict[str, Any]:
         "media": media,
         "events": events,
         "cost": cost,
+        "production_observation": load_production_observation(project_dir),
         "last_activity": last_activity,
         "live": bool(last_activity and (now - last_activity) < LIVE_WINDOW_SECONDS),
     }
