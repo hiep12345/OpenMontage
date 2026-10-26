@@ -5,6 +5,7 @@ from pathlib import Path
 import sqlite3
 import stat
 import subprocess
+import sys
 
 import pytest
 
@@ -162,6 +163,86 @@ def test_separate_verified_finalize_and_rollback_restore_absent_source(packet):
     assert not packet["destination"].exists()
     assert migration._inventory(packet["source"]) == value["inventory"]
     assert not retired.exists()
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux directory move permission contract")
+@pytest.mark.parametrize("operation", ["finalize", "rollback"])
+def test_linux_cross_parent_move_temporarily_writes_only_frozen_root(packet, monkeypatch, operation):
+    value, receipt, sha, verified_sha = verified(packet)
+    if operation == "rollback":
+        migration.finalize_copy(packet["receipt"], expected_receipt_sha256=sha,
+                                verification_path=packet["verification"], expected_verification_sha256=verified_sha)
+        sha = migration.file_sha256(packet["receipt"])
+    publish = migration._publish_no_replace
+    moved = []
+
+    def checked_publish(source, target):
+        expected = [dict(item, mode=item["mode"] | stat.S_IWUSR) if not item["path"] else item
+                    for item in receipt["frozen_source_inventory"]]
+        assert source.parent != target.parent
+        assert migration._inventory(source) == expected
+        moved.append((source, target))
+        publish(source, target)
+
+    monkeypatch.setattr(migration, "_publish_no_replace", checked_publish)
+    if operation == "finalize":
+        migration.finalize_copy(packet["receipt"], expected_receipt_sha256=sha,
+                                verification_path=packet["verification"], expected_verification_sha256=verified_sha)
+        assert migration._inventory(packet["rollback"] / "original-source") == receipt["frozen_source_inventory"]
+    else:
+        migration.rollback_copy(packet["receipt"], expected_receipt_sha256=sha)
+        assert migration._inventory(packet["source"]) == value["inventory"]
+    assert len(moved) == 1
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux directory move permission contract")
+@pytest.mark.parametrize("failure", ["publish", "after-chmod", "after-rename", "changed", "occupied"])
+def test_linux_retirement_failure_refreezes_original_and_preserves_changes(packet, monkeypatch, failure):
+    _, receipt, sha, verified_sha = verified(packet)
+    original_chmod = Path.chmod
+    original_publish = migration._publish_no_replace
+    retired = packet["rollback"] / "original-source"
+    root_mode = stat.S_IMODE(packet["source"].stat().st_mode)
+    changed = packet["source"] / "project.json"
+
+    def interrupted_chmod(path, mode, *args, **kwargs):
+        result = original_chmod(path, mode, *args, **kwargs)
+        if path == packet["source"] and mode == root_mode | stat.S_IWUSR:
+            if failure == "after-chmod":
+                raise KeyboardInterrupt("interrupted after root chmod")
+            if failure == "changed":
+                original_chmod(changed, stat.S_IRUSR | stat.S_IWUSR)
+                changed.write_text("new owner result")
+        return result
+
+    def interrupted_publish(source, target):
+        if failure == "after-rename":
+            original_publish(source, target)
+            raise KeyboardInterrupt("interrupted after root rename")
+        if failure == "occupied":
+            target.mkdir()
+            (target / "owner.txt").write_text("preserve")
+            original_publish(source, target)
+        raise PermissionError("fixture rename denied")
+
+    monkeypatch.setattr(Path, "chmod", interrupted_chmod)
+    monkeypatch.setattr(migration, "_publish_no_replace", interrupted_publish)
+    error = KeyboardInterrupt if failure in {"after-chmod", "after-rename"} else migration.MigrationError if failure == "changed" else OSError
+    with pytest.raises(error):
+        migration.finalize_copy(packet["receipt"], expected_receipt_sha256=sha,
+                                verification_path=packet["verification"], expected_verification_sha256=verified_sha)
+    original = retired if failure == "after-rename" else packet["source"]
+    assert stat.S_IMODE(original.stat().st_mode) == root_mode
+    assert migration._identity(original) == receipt["source_identity"]
+    assert migration.file_sha256(packet["receipt"]) == sha
+    if failure == "changed":
+        assert changed.read_text() == "new owner result"
+    else:
+        assert migration._inventory(original) == receipt["frozen_source_inventory"]
+    if failure == "occupied":
+        assert (retired / "owner.txt").read_text() == "preserve"
+    elif failure != "after-rename":
+        assert not retired.exists()
 
 
 @pytest.mark.parametrize("changed", ["source", "destination", "rollback"])

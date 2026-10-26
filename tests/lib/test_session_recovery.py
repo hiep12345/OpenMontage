@@ -2,6 +2,7 @@
 import hashlib
 import json
 import os
+import re
 from pathlib import Path
 import shutil
 import sqlite3
@@ -95,7 +96,17 @@ def snapshot(root):
             for path in root.rglob("*") if path.is_file()}
 
 
-def test_default_does_not_select_or_read_two_runs_or_workflow(workspace):
+@pytest.mark.parametrize("include_objective", [False, True])
+def test_default_does_not_select_or_read_two_runs_or_workflow(workspace, include_objective):
+    source = workspace / "PROJECT_CONTEXT.md"
+    heading = "Owner's creative-production objective (operative)"
+    objective = "Preserve the selected owner's production intent."
+    # Exercise both public and owner contexts, independent of this checkout's copy.
+    content = re.sub(r"^## Owner's creative-production objective[^\n]*\n.*?(?=^## |\Z)",
+                     "", source.read_text(encoding="utf-8"), flags=re.M | re.S)
+    if include_objective:
+        content += f"\n## {heading}\n\n{objective}\n"
+    source.write_text(content, encoding="utf-8")
     for name in ("run-a", "run-b"):
         (workspace / name).mkdir()
         (workspace / name / "project.json").write_text("malformed", encoding="utf-8")
@@ -103,7 +114,18 @@ def test_default_does_not_select_or_read_two_runs_or_workflow(workspace):
     before = snapshot(workspace)
     result = recover(workspace=workspace)
     assert result["task"] is None and result["run"] is None
-    assert set(result["overview"]["sections"]) == {"Identity", "Architecture: Instruction-Driven (Agent-First)", "Source of Truth"}
+    sections = result["overview"]["sections"]
+    expected = {"Identity", "Architecture: Instruction-Driven (Agent-First)", "Source of Truth"}
+    if include_objective:
+        expected.add(heading)
+        selected = sections[heading]
+        assert selected["data"] == objective
+        assert selected["operative_objectives"][0]["data"] == objective
+        assert selected["source"]["sha256"] == hashlib.sha256(source.read_bytes()).hexdigest()
+        assert selected["source"]["path"] == str(source)
+        assert selected["source"]["section"] == heading
+        assert selected["operative_objectives"][0]["source"] == {**selected["source"], "paragraph": 1}
+    assert set(sections) == expected
     assert snapshot(workspace) == before
 
 

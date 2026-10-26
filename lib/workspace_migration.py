@@ -295,6 +295,55 @@ def _publish_no_replace(source, target):
         raise MigrationError("atomic no-replace publication is unsupported on this platform")
 
 
+def _move_frozen_source(source, target, inventory, identity):
+    # Linux checks write permission on a directory when moving its '..' entry
+    # across parents. Keep the packet frozen except for its root during this
+    # locked move; descendants never need additional permission.
+    if not sys.platform.startswith("linux") or source.parent == target.parent:
+        _publish_no_replace(source, target)
+        return
+    _assert_inventory(source, inventory)
+    if _identity(source) != identity:
+        raise MigrationError("source directory identity changed before move")
+    frozen_mode = next(item["mode"] for item in inventory if not item["path"])
+    move_mode = frozen_mode | stat.S_IWUSR
+    moving_inventory = [dict(item, mode=move_mode) if not item["path"] else dict(item)
+                        for item in inventory]
+
+    def refreeze():
+        # A caught interruption may follow the OS rename or chmod itself.
+        # Locate only the original inode, never chmod a replacement owner tree.
+        for candidate in (source, target):
+            if not candidate.exists() or _linked(candidate):
+                continue
+            info = candidate.lstat()
+            if [info.st_dev, info.st_ino] != identity:
+                continue
+            if not stat.S_ISDIR(info.st_mode) or stat.S_IMODE(info.st_mode) not in {frozen_mode, move_mode}:
+                raise MigrationError("source mode changed during move")
+            if stat.S_IMODE(info.st_mode) != frozen_mode:
+                candidate.chmod(frozen_mode)
+            _assert_inventory(candidate, inventory)
+            return
+        raise MigrationError("source directory identity changed during move")
+
+    try:
+        source.chmod(move_mode)
+        _assert_inventory(source, moving_inventory)
+        if _identity(source) != identity:
+            raise MigrationError("source directory identity changed before move")
+        _publish_no_replace(source, target)
+    except BaseException as exc:
+        try:
+            refreeze()
+        except BaseException as recovery_exc:
+            if hasattr(exc, "add_note"):
+                exc.add_note(f"Source refreeze requires review: {type(recovery_exc).__name__}: {recovery_exc}")
+        raise
+    else:
+        refreeze()
+
+
 def _update_receipt(path, receipt, expected_sha):
     _read_exact(path, expected_sha)
     temporary = path.with_name(path.name + "." + uuid.uuid4().hex + ".tmp")
@@ -628,7 +677,7 @@ def finalize_copy(receipt_path, *, expected_receipt_sha256: str, verification_pa
             raise MigrationError("retired source location is occupied")
         if not _same_volume(source, retired.parent):
             raise MigrationError("cross-volume source retirement is unsupported")
-        _publish_no_replace(source, retired)
+        _move_frozen_source(source, retired, receipt["frozen_source_inventory"], receipt["source_identity"])
         receipt.update(status="FINALIZED", finalized_at=_now(), retired_source=str(retired))
         _update_receipt(Path(receipt_path), receipt, expected_receipt_sha256)
         return receipt
@@ -659,7 +708,7 @@ def rollback_copy(receipt_path, *, expected_receipt_sha256: str) -> dict:
                 raise MigrationError("source is occupied; refusing replacement")
             if not _same_volume(retired, source.parent):
                 raise MigrationError("cross-volume source restoration is unsupported")
-            _publish_no_replace(retired, source)
+            _move_frozen_source(retired, source, receipt["frozen_source_inventory"], receipt["source_identity"])
         _remove_verified_tree(destination, plan["inventory"], receipt["destination_identity"])
         _permissions(source, plan["inventory"])
         receipt.update(status="ROLLED_BACK", rolled_back_at=_now())
