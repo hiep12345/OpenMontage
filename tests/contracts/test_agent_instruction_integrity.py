@@ -41,6 +41,7 @@ PLATFORM_POINTERS = (
     "COPILOT.md",
     ".github/copilot-instructions.md",
     ".cursor/rules/openmontage.mdc",
+    ".windsurfrules",
 )
 
 

@@ -12,10 +12,12 @@ the structured data; the agent provides the visual interpretation.
 from __future__ import annotations
 
 import json
+import tempfile
 import time
 from pathlib import Path
 from typing import Any
 
+from lib.paths import PROJECTS_DIR
 from tools.base_tool import (
     BaseTool,
     Determinism,
@@ -151,15 +153,24 @@ class VideoAnalyzer(BaseTool):
         depth = inputs.get("analysis_depth", "standard")
         max_keyframes = inputs.get("max_keyframes", 20)
 
+        platform = self._detect_platform(source)
+        is_url = self._is_url(source)
+        # Reject invalid local inputs before creating any analysis workspace.
+        if not is_url and not Path(source).is_file():
+            return ToolResult(
+                success=False,
+                error=f"Local source is not a file: {source}",
+            )
+
         # Setup output directory
         if inputs.get("output_dir"):
             output_dir = Path(inputs["output_dir"])
+            output_dir.mkdir(parents=True, exist_ok=True)
         else:
-            output_dir = Path("projects/_analysis") / f"analysis_{int(time.time())}"
-        output_dir.mkdir(parents=True, exist_ok=True)
+            analysis_root = PROJECTS_DIR / "_analysis"
+            analysis_root.mkdir(parents=True, exist_ok=True)
+            output_dir = Path(tempfile.mkdtemp(prefix="analysis_", dir=analysis_root))
 
-        platform = self._detect_platform(source)
-        is_url = self._is_url(source)
         start = time.time()
 
         # Initialize brief structure
@@ -239,11 +250,6 @@ class VideoAnalyzer(BaseTool):
         else:
             # Local file
             local_path = Path(source)
-            if not local_path.exists():
-                return ToolResult(
-                    success=False,
-                    error=f"Local file not found: {source}",
-                )
             video_path = str(local_path)
             # Get duration via ffprobe
             try:

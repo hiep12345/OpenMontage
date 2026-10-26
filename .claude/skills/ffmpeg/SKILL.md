@@ -148,7 +148,7 @@ ffprobe -v quiet -print_format json -show_format -show_streams input.mp4
 | Constant speed (1.5x, 2x) | Either works | ✅ Simpler |
 | Extreme speeds (>4x or <0.25x) | ✅ More reliable | May have issues |
 | Variable speed (accelerate over time) | ✅ Pre-process | Complex workaround needed |
-| Need perfect audio sync | ✅ Guaranteed | Usually fine |
+| Audio sync | Verify output timestamps and playback | Verify after re-encoding |
 | Demo needs to fit voiceover timing | ✅ Pre-calculate | Runtime adjustment |
 
 **Remotion limitation:** `playbackRate` must be constant. Dynamic interpolation like `playbackRate={interpolate(frame, [0, 100], [1, 5])}` won't work correctly because Remotion evaluates frames independently.
@@ -279,28 +279,38 @@ ffmpeg -i out/video.mp4 \
   out/video-shorts.mp4
 ```
 
+Platform limits below are illustrative; verify the destination's current official requirements when exporting.
+
 ### Twitter/X
 
-Twitter has strict limits: max 140s, 512MB, 1920x1200:
+Confirm the destination account's current duration, file-size and resolution
+limits before exporting. The example below is an encoding starting point:
 
 ```bash
-# Twitter optimized (under 15MB target for fast upload)
+# Twitter-oriented encode (CRF does not guarantee a file-size ceiling)
 ffmpeg -i out/video.mp4 \
   -c:v libx264 -preset medium -crf 24 \
   -profile:v main -level 3.1 \
   -vf "scale='min(1280,iw)':'min(720,ih)':force_original_aspect_ratio=decrease" \
   -c:a aac -b:a 128k -ar 44100 \
   -movflags +faststart \
-  -fs 15M \
   out/video-twitter.mp4
 
+# Check the complete output size and duration; compare duration with the source.
+# For a strict byte budget, calculate a bitrate from duration and use two-pass
+# encoding, then verify. Do not use -fs: it stops writing and can truncate the video.
 # Check file size and duration
 ffprobe -v error -show_entries format=duration,size -of csv=p=0 out/video-twitter.mp4
 ```
 
+The [FFmpeg option reference](https://ffmpeg.org/ffmpeg.html#Main-options) explains
+that `-fs` stops writing after its byte limit; it is not a full-duration encoding
+budget.
+
 ### LinkedIn
 
-LinkedIn prefers MP4 with AAC audio, max 10 minutes:
+Use the destination's current requirements for the chosen post type. This
+MP4/AAC example does not establish an account's upload limits:
 
 ```bash
 # LinkedIn optimized
@@ -348,16 +358,13 @@ ffmpeg -i out/video.mp4 -t 3 \
   out/preview-small.gif
 ```
 
-### Platform Requirements Quick Reference
+### Destination Checks
 
-| Platform | Max Resolution | Max Size | Max Duration | Audio |
-|----------|---------------|----------|--------------|-------|
-| YouTube | 8K | 256GB | 12 hours | AAC 48kHz |
-| Twitter/X | 1920x1200 | 512MB | 140s | AAC 44.1kHz |
-| LinkedIn | 4096x2304 | 5GB | 10 min | AAC 48kHz |
-| Instagram Feed | 1080x1350 | 4GB | 60s | AAC 48kHz |
-| Instagram Reels | 1080x1920 | 4GB | 90s | AAC 48kHz |
-| TikTok | 1080x1920 | 287MB | 10 min | AAC |
+Before exporting for a selected destination, verify its current official limits
+for the actual account, post type and upload route. Check duration, byte size,
+resolution/aspect ratio and supported video/audio codecs. After encoding, probe
+the complete output and compare its duration with the source. Example settings
+in this guide are not platform eligibility or publishing approval.
 
 ### Batch Export for All Platforms
 

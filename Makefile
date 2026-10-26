@@ -90,10 +90,10 @@ install-gpu: ensure-venv
 # ---- Testing ----
 
 test: ensure-venv
-	$(RUN_PYTHON) -m pytest tests/ -v
+	$(RUN_PYTHON) -B scripts/run_tests.py tests/ -v
 
 test-contracts: ensure-venv
-	$(RUN_PYTHON) -m pytest tests/contracts/ -v
+	$(RUN_PYTHON) -B scripts/run_tests.py tests/contracts/ -v
 
 # ---- Utilities ----
 

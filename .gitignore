@@ -20,12 +20,13 @@ htmlcov/
 .idea/
 .vscode/
 
-# Pipeline outputs (regenerable — never commit large media)
+# Generated output locations (ignored does not authorize deletion)
 output/
 pipeline/
 tests/qa/output/
 
-# Project workspaces (generated assets, renders — all regenerable)
+# Production workspaces: preserve assets, checkpoints and receipts.
+# Paid/stochastic outputs and accepted media are not assumed regenerable.
 projects/
 
 # Corpus directories (downloaded stock clips, thumbnails, embeddings —
@@ -82,7 +83,7 @@ node_modules/
 # Remotion build output and copied project assets (regenerable at render time)
 remotion-composer/out/
 # Project-local bespoke ("atelier") compositions — hand-authored per video,
-# throwaway and regenerable. Keeps the shared src/ free of one-off scenes.
+# preserved with their production when needed. Keeps shared src/ free of one-off scenes.
 remotion-composer/projects/
 remotion-composer/public/*
 # But keep demo props (shipped with the project for zero-key demos)
