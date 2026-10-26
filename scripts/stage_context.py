@@ -9,6 +9,7 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from lib import stage_context as context
+from lib.paths import resolve_project_input
 
 
 def read_json(path):
@@ -20,7 +21,7 @@ def main(argv=None):
         if hasattr(stream, "reconfigure"):
             stream.reconfigure(encoding="utf-8")
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--project", type=Path, required=True)
+    parser.add_argument("--project", type=resolve_project_input, required=True)
     commands = parser.add_subparsers(dest="command", required=True)
     enable = commands.add_parser("enable")
     enable.add_argument("--profile", help="JSON profile with explicit scope and source declarations")
@@ -109,6 +110,17 @@ def main(argv=None):
 
 
 def handoff_stage(args):
+    """Keep assessment writes and checkpoint advancement under one run writer."""
+    from lib.run_lock import RunWriterError, run_write_lock
+
+    try:
+        with run_write_lock(args.project.resolve()):
+            return _handoff_stage_locked(args)
+    except RunWriterError as exc:
+        raise context.StageContextError(str(exc)) from exc
+
+
+def _handoff_stage_locked(args):
     """Accept authored assessments, not an auto-filled loop over context IDs."""
     from lib.checkpoint import write_checkpoint
 

@@ -27,6 +27,8 @@ from pathlib import Path
 NPX = shutil.which("npx") or "npx"
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(REPO_ROOT))
+from lib.paths import resolve_project_dir
 COMPOSER_DIR = REPO_ROOT / "remotion-composer"
 
 
@@ -48,7 +50,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--only", nargs="*", help="only these scene ids")
     args = ap.parse_args(argv)
 
-    proj = REPO_ROOT / "projects" / args.slug
+    proj = resolve_project_dir(args.slug)
     if not proj.is_dir():
         print(f"error: no project at {proj}", file=sys.stderr)
         return 2
@@ -105,7 +107,7 @@ def main(argv: list[str] | None = None) -> int:
         try:
             subprocess.run(cmd, cwd=COMPOSER_DIR, check=True, capture_output=True, text=True, timeout=600)
             ok += 1
-            print(f"  {sid}: frame {frame} -> {out.relative_to(REPO_ROOT)}")
+            print(f"  {sid}: frame {frame} -> {out}")
         except subprocess.CalledProcessError as e:
             fail += 1
             print(f"  {sid}: FAILED — {(e.stderr or e.stdout or '')[-300:]}", file=sys.stderr)
@@ -113,7 +115,7 @@ def main(argv: list[str] | None = None) -> int:
             fail += 1
             print(f"  {sid}: FAILED — {e}", file=sys.stderr)
 
-    print(f"snapshots: {ok} ok, {fail} failed -> {snap_dir.relative_to(REPO_ROOT)}")
+    print(f"snapshots: {ok} ok, {fail} failed -> {snap_dir}")
     return 0 if fail == 0 else 1
 
 

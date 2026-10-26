@@ -89,6 +89,8 @@ CHECKPOINT_SCHEMA_PATH = (
 # board watches. Callers may still pass a different pipeline_dir (tests do),
 # but production runs should use the default.
 from lib.paths import PROJECTS_DIR  # noqa: E402  (single source of truth)
+from lib.paths import resolve_project_dir
+from lib.run_lock import guarded_checkpoint_writer
 
 PROJECT_MARKER_FILENAME = "project.json"
 HISTORY_DIRNAME = "history"
@@ -195,9 +197,10 @@ def validate_checkpoint(checkpoint: dict[str, Any]) -> None:
 
 
 def _checkpoint_path(pipeline_dir: Path, project_id: str, stage: str) -> Path:
-    return pipeline_dir / project_id / f"checkpoint_{stage}.json"
+    return resolve_project_dir(project_id, projects_dir=pipeline_dir) / f"checkpoint_{stage}.json"
 
 
+@guarded_checkpoint_writer
 def init_project(
     project_id: str,
     *,
@@ -411,7 +414,7 @@ def _archive_superseded_checkpoint(path: Path, stage: str) -> None:
 
 
 def _decision_log_path(pipeline_dir: Path, project_id: str) -> Path:
-    return pipeline_dir / project_id / "decision_log.json"
+    return resolve_project_dir(project_id, projects_dir=pipeline_dir) / "decision_log.json"
 
 
 def _merge_decision_log(
@@ -444,6 +447,7 @@ def _merge_decision_log(
         json.dump(existing, f, indent=2)
 
 
+@guarded_checkpoint_writer
 def write_checkpoint(
     pipeline_dir: Path,
     project_id: str,
@@ -597,16 +601,18 @@ def write_checkpoint(
     # current checkpoint; then archive the superseded file and swap in the
     # new one atomically.
     tmp_path = path.with_suffix(".json.tmp")
-    with open(tmp_path, "w", encoding="utf-8") as f:
-        if stage_context_active:
-            f.write(payload)
-        else:
-            json.dump(checkpoint, f, indent=2)
-    # Preserve run history: a superseded completed/awaiting_human checkpoint
-    # is copied to history/ (stage versioning, gate audit trail, replay).
-    _archive_superseded_checkpoint(path, stage)
-    import os
-    os.replace(tmp_path, path)
+    try:
+        with open(tmp_path, "w", encoding="utf-8") as f:
+            if stage_context_active:
+                f.write(payload)
+            else:
+                json.dump(checkpoint, f, indent=2)
+        # Preserve history before atomically replacing the current checkpoint.
+        _archive_superseded_checkpoint(path, stage)
+        import os
+        os.replace(tmp_path, path)
+    finally:
+        tmp_path.unlink(missing_ok=True)
 
     return path
 
@@ -628,7 +634,7 @@ def get_latest_checkpoint(
     pipeline_dir: Path, project_id: str
 ) -> Optional[dict[str, Any]]:
     """Find the most recent checkpoint for a project (by file mtime)."""
-    project_dir = pipeline_dir / project_id
+    project_dir = resolve_project_dir(project_id, projects_dir=pipeline_dir)
     if not project_dir.exists():
         return None
 

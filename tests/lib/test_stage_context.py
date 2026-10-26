@@ -207,6 +207,33 @@ def test_concurrent_feedback_appends_survive_restart(tmp_path):
     assert {row["id"] for row in persisted} == {row["id"] for row in records}
 
 
+def test_feedback_transaction_waits_for_migration_writer(tmp_path, monkeypatch):
+    from contextlib import contextmanager
+    from threading import Event
+    from lib import run_lock
+
+    project = make_project(tmp_path)
+    original = run_lock.run_write_lock
+    attempted, acquired = Event(), Event()
+
+    @contextmanager
+    def observed_lock(*args, **kwargs):
+        attempted.set()
+        with original(*args, **kwargs):
+            acquired.set()
+            yield
+
+    monkeypatch.setattr(run_lock, "run_write_lock", observed_lock)
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        with original(project):
+            future = pool.submit(sc.append_feedback, project, feedback())
+            assert attempted.wait(5)
+            assert not acquired.is_set()
+        result = future.result(timeout=10)
+    assert acquired.is_set()
+    assert sc.read_feedback(project)[0]["id"] == result["id"]
+
+
 def test_feedback_stales_existing_context(tmp_path):
     project = make_project(tmp_path)
     packet = receipt(project)

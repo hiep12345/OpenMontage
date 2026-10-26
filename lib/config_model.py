@@ -42,7 +42,6 @@ class BudgetConfig(BaseModel):
 
 class CheckpointConfig(BaseModel):
     policy: CheckpointPolicy = CheckpointPolicy.GUIDED
-    storage_dir: str = "pipeline"
 
 
 class OutputConfig(BaseModel):
@@ -55,7 +54,6 @@ class OutputConfig(BaseModel):
 
 
 class PathsConfig(BaseModel):
-    pipeline_dir: str = "pipeline"
     library_dir: str = "library"
     styles_dir: str = "styles"
     skills_dir: str = "skills"

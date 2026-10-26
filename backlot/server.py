@@ -19,6 +19,8 @@ from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 from backlot.state import PROJECTS_DIR, REPO_ROOT, list_projects, load_board_state, summarize_project
+from lib.workspace import WorkspaceError, runtime_identity, validate_project_id
+from lib.paths import project_roots, resolve_project_dir, iter_project_dirs
 
 UI_DIR = Path(__file__).resolve().parent / "ui"
 THUMB_CACHE_DIR = REPO_ROOT / ".backlot" / "thumbs"
@@ -83,13 +85,11 @@ def _invalidate_summary(project_id: str) -> None:
 
 
 def _cached_summaries() -> list[dict]:
-    if not PROJECTS_DIR.is_dir():
-        return []
     summaries = []
-    for entry in sorted(PROJECTS_DIR.iterdir()):
-        if not entry.is_dir() or entry.name.startswith(("_", ".")):
-            continue
+    for entry in iter_project_dirs(PROJECTS_DIR):
         cached = _summary_cache.get(entry.name)
+        if cached is not None and cached.get("_root") != str(entry.parent.resolve()):
+            cached = None
         if cached is None:
             try:
                 cached = summarize_project(entry)
@@ -102,6 +102,7 @@ def _cached_summaries() -> list[dict]:
                     "stage_states": [], "completed_count": 0,
                     "render_count": 0, "scene_count": 0, "error": "unreadable",
                 }
+            cached["_root"] = str(entry.parent.resolve())
             _summary_cache[entry.name] = cached
         summaries.append(cached)
     summaries.sort(key=lambda s: (not s["live"], -(s["last_activity"] or 0)))
@@ -118,15 +119,15 @@ _PROJECTS_ROOT_STR = _os.path.normcase(str(PROJECTS_DIR.resolve()))
 def _project_of_change(path_str: str) -> Optional[str]:
     """Map a changed filesystem path to a project id (None = irrelevant)."""
     norm = _os.path.normcase(_os.path.normpath(path_str))
-    if not norm.startswith(_PROJECTS_ROOT_STR):
-        return None
-    rel = norm[len(_PROJECTS_ROOT_STR):].lstrip("\\/")
-    if not rel:
-        return None
-    parts = rel.replace("\\", "/").split("/")
-    if _IGNORE_PARTS.intersection(parts):
-        return None
-    return parts[0]
+    roots = [_PROJECTS_ROOT_STR, *(_os.path.normcase(str(p.resolve())) for p in project_roots(PROJECTS_DIR)[1:])]
+    for root in roots:
+        if not norm.startswith(root.rstrip("\\/") + _os.sep):
+            continue
+        rel = norm[len(root):].lstrip("\\/")
+        parts = rel.replace("\\", "/").split("/")
+        if rel and not _IGNORE_PARTS.intersection(parts):
+            return parts[0]
+    return None
 
 
 async def _watch_projects() -> None:
@@ -135,9 +136,10 @@ async def _watch_projects() -> None:
         from watchfiles import awatch
     except ImportError:
         return  # watcher unavailable → board still works via manual refresh
-    if not PROJECTS_DIR.is_dir():
+    roots = [p for p in project_roots(PROJECTS_DIR) if p.is_dir()]
+    if not roots:
         return
-    async for changes in awatch(PROJECTS_DIR, recursive=True, step=400):
+    async for changes in awatch(*roots, recursive=True, step=400):
         touched: set[str] = set()
         for _change, path_str in changes:
             pid = _project_of_change(path_str)
@@ -164,16 +166,22 @@ async def _lifespan(app: FastAPI):
 
 def create_app() -> FastAPI:
     app = FastAPI(title="Backlot", docs_url=None, redoc_url=None, lifespan=_lifespan)
+    # Captured at app construction, not each request: a process running old
+    # imported code must not claim a later source repair as its own release.
+    identity = runtime_identity(projects_dir=PROJECTS_DIR)
 
     # ---- API ----------------------------------------------------------
 
     @app.get("/api/health")
     async def health() -> dict:
-        return {"ok": True, "app": "backlot"}
+        return {"ok": True, "app": "backlot", "identity": identity}
 
     @app.get("/api/projects")
     async def projects() -> list:
-        return await asyncio.to_thread(_cached_summaries)
+        try:
+            return await asyncio.to_thread(_cached_summaries)
+        except WorkspaceError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
 
     @app.get("/api/project/{project_id}/state")
     async def project_state(project_id: str) -> dict:
@@ -310,9 +318,14 @@ def create_app() -> FastAPI:
 def _safe_project_dir(project_id: str) -> Path:
     # ':' rejects Windows drive-relative ids like "C:" (PROJECTS_DIR / "C:"
     # collapses back to PROJECTS_DIR itself).
-    if any(c in project_id for c in "/\\:") or project_id in (".", ".."):
-        raise HTTPException(status_code=400, detail="invalid project id")
-    project_dir = PROJECTS_DIR / project_id
+    try:
+        validate_project_id(project_id)
+    except WorkspaceError as exc:
+        raise HTTPException(status_code=400, detail="invalid project id") from exc
+    try:
+        project_dir = resolve_project_dir(project_id, PROJECTS_DIR)
+    except WorkspaceError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     if not project_dir.is_dir():
         raise HTTPException(status_code=404, detail=f"unknown project: {project_id}")
     return project_dir

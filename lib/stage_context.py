@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from contextlib import closing, contextmanager
 from datetime import datetime, timezone
+from functools import wraps
 import hashlib
 from itertools import islice
 import json
@@ -39,6 +40,22 @@ CANONICAL = {"research": "research_brief", "proposal": "proposal_packet", "idea"
 
 class StageContextError(ValueError):
     """Stage provenance, explicit decisions or semantic review is missing/stale."""
+
+
+def _stage_writer(function=None, *, wait=0):
+    """Serialize a full stage mutation, including its source preconditions."""
+    if function is None:
+        return lambda selected: _stage_writer(selected, wait=wait)
+    @wraps(function)
+    def guarded(project, *args, **kwargs):
+        from lib.run_lock import RunWriterError, run_write_lock
+        project = _project(project)
+        try:
+            with run_write_lock(project, timeout=wait):
+                return function(project, *args, **kwargs)
+        except RunWriterError as exc:
+            raise StageContextError(str(exc)) from exc
+    return guarded
 
 
 def _json(value):
@@ -161,20 +178,35 @@ def serialize_marker(marker):
 
 
 def _knowledge(item):
-    allowed = {"id", "text", "path", "scope", "version", "expires_at", "supersedes"}
+    allowed = {"id", "text", "path", "private_skill", "scope", "version", "expires_at", "supersedes"}
     if not isinstance(item, dict) or set(item) - allowed:
         raise StageContextError("Invalid knowledge declaration")
     _text(item.get("id"), "knowledge id")
     _text(item.get("version"), "knowledge version")
     _scope(item.get("scope"))
-    if ("text" in item) == ("path" in item):
-        raise StageContextError("Declare exactly one text or path knowledge source")
-    _text(item.get("text", item.get("path")), "knowledge source")
+    sources = [key for key in ("text", "path", "private_skill") if key in item]
+    if len(sources) != 1:
+        raise StageContextError("Declare exactly one text, path or private_skill knowledge source")
+    _text(item[sources[0]], "knowledge source")
     if len(_json(item).encode()) > MAX_BYTES:
         raise StageContextError("Knowledge declaration exceeds bound")
     _expiry(item)
     if "supersedes" in item:
         _text(item["supersedes"], "supersedes")
+
+
+def _private_skill_path(name, *, required=False):
+    """Use only an explicitly bound, allowlisted canonical package."""
+    from lib.workspace import WorkspaceError, private_skill_dir
+    try:
+        directory = private_skill_dir(name, repo_root=ROOT)
+    except WorkspaceError as exc:
+        raise StageContextError(str(exc)) from exc
+    if directory is None:
+        if required:
+            raise StageContextError("Private skill is not selected by the workspace binding")
+        return None
+    return _safe(directory, "SKILL.md")
 
 
 def _expiry(item):
@@ -267,6 +299,7 @@ def policy_enabled(project):
     return True
 
 
+@_stage_writer
 def enable_policy(project, profile=None, *, version=DEFAULT_CONTEXT_VERSION):
     if not isinstance(version, str) or version not in CONTEXT_VERSIONS:
         raise StageContextError("Unsupported stage context policy version")
@@ -295,6 +328,7 @@ def enable_policy(project, profile=None, *, version=DEFAULT_CONTEXT_VERSION):
     return policy
 
 
+@_stage_writer
 def configure_profile(project, profile):
     """Record an explicit configuration change and invalidate prior contexts."""
     project = _project(project)
@@ -328,9 +362,12 @@ def _put(db, kind, record):
                (record["id"], kind, payload, digest(record)))
 
 
+@_stage_writer(wait=10)
 def append_feedback(project, feedback):
     """Append an owner correction or observation; never promote it to a rule."""
     project = _project(project)
+    # Bounded waiting preserves concurrent appends while excluding migration
+    # and owner reassignment across the complete SQLite transaction.
     allowed = {"text", "scope", "authority", "author", "polarity", "supersedes", "expires_at", "artifact_hash", "stage"}
     if not isinstance(feedback, dict) or set(feedback) - allowed:
         raise StageContextError("Invalid feedback fields")
@@ -512,7 +549,9 @@ def build_stage_context(project, stage, *, _full_content=None):
     context_version = marker["stage_context_policy"]["version"]
     lean = context_version == "1.1"
     if entry.get("skill"):
-        director_path = _safe(ROOT, "skills/" + entry["skill"] + ".md")
+        director_path = _private_skill_path(entry["skill"])
+        if director_path is None:
+            director_path = _safe(ROOT, "skills/" + entry["skill"] + ".md")
         try:
             director = _bytes(director_path).decode("utf-8")
         except (OSError, UnicodeError) as exc:
@@ -583,6 +622,18 @@ def build_stage_context(project, stage, *, _full_content=None):
         if declaration["id"] in superseded:
             status, reason = "inapplicable", "superseded"
         content = declaration.get("text")
+        reference = declaration.get("path", "inline")
+        if "private_skill" in declaration:
+            if status == "applicable":
+                path = _private_skill_path(declaration["private_skill"], required=True)
+                try:
+                    content = _bytes(path).decode("utf-8")
+                except UnicodeError as exc:
+                    raise StageContextError("Private skill source must be UTF-8 text") from exc
+                reference = str(path)
+            else:
+                content = "Private skill not read: " + reason
+                reference = "unread private skill declaration"
         if "path" in declaration:
             _safe(project, declaration["path"])  # reject absolute/traversal before prefixing
             path = _safe(project, "knowledge/" + declaration["path"])
@@ -593,7 +644,7 @@ def build_stage_context(project, stage, *, _full_content=None):
             except UnicodeError as exc:
                 raise StageContextError("Knowledge sources must be UTF-8 text") from exc
         items.append(selected_item("knowledge:" + declaration["id"], "knowledge", content,
-                           reference=declaration.get("path", "inline"), version=declaration["version"],
+                           reference=reference, version=declaration["version"],
                            applicability=status, reason=reason))
     sources, discovered, feedback_cache = _sources(project, profile, stage, lean=lean)
     for source in sources:
@@ -729,6 +780,7 @@ def _decisions(context, decisions):
             raise StageContextError("Manifest and selected director must be explicitly applied")
 
 
+@_stage_writer
 def record_application(project, stage, artifact, decisions, reviewer, *, context_hash):
     project = _project(project)
     context = build_stage_context(project, stage)
@@ -762,6 +814,7 @@ def review_template(project, stage, artifact):
                        for criterion in _criteria(context)]}
 
 
+@_stage_writer
 def record_logic_review(project, stage, artifact, review):
     project = _project(project)
     context = build_stage_context(project, stage)

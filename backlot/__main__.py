@@ -10,6 +10,7 @@ initialization and must continue the production even if it fails.
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import subprocess
 import sys
@@ -18,6 +19,11 @@ import urllib.request
 import webbrowser
 
 from backlot import DEFAULT_PORT
+from lib.workspace import REPO_ROOT, runtime_identity
+
+
+class ServerIdentityMismatch(RuntimeError):
+    pass
 
 
 def _port() -> int:
@@ -30,7 +36,18 @@ def _port() -> int:
 def _server_alive(port: int) -> bool:
     try:
         with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/health", timeout=1.5) as resp:
-            return resp.status == 200
+            if resp.status != 200:
+                return False
+            try:
+                health = json.loads(resp.read())
+            except (ValueError, UnicodeError) as exc:
+                raise ServerIdentityMismatch("port is occupied by an unrecognized service") from exc
+            if (not isinstance(health, dict) or health.get("app") != "backlot"
+                    or health.get("ok") is not True or health.get("identity") != runtime_identity()):
+                raise ServerIdentityMismatch("port belongs to a different workspace, projects root, or source release")
+            return True
+    except ServerIdentityMismatch:
+        raise
     except Exception:
         return False
 
@@ -39,6 +56,7 @@ def _spawn_server(port: int) -> None:
     """Start the server as a detached background process."""
     cmd = [sys.executable, "-m", "backlot", "serve", "--port", str(port)]
     kwargs: dict = {
+        "cwd": str(REPO_ROOT),
         "stdout": subprocess.DEVNULL,
         "stderr": subprocess.DEVNULL,
         "stdin": subprocess.DEVNULL,
@@ -52,7 +70,7 @@ def _spawn_server(port: int) -> None:
     subprocess.Popen(cmd, **kwargs)
 
 
-def cmd_open(project_id: str | None) -> int:
+def _cmd_open(project_id: str | None) -> int:
     port = _port()
     if not _server_alive(port):
         try:
@@ -77,6 +95,14 @@ def cmd_open(project_id: str | None) -> int:
         pass
     print(f"backlot: {url}")
     return 0
+
+
+def cmd_open(project_id: str | None) -> int:
+    try:
+        return _cmd_open(project_id)
+    except ServerIdentityMismatch as exc:
+        print(f"backlot: {exc}; use the matching server or an unused port")
+        return 1
 
 
 def cmd_serve(port: int) -> int:

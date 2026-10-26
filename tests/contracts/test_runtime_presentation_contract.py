@@ -258,15 +258,27 @@ def test_actual_runtime_consumers_preserve_authority_blockers_and_gates(path):
 
 
 def test_runtime_consumers_do_not_reference_retired_always_both_rule():
-    paths = _runtime_consumers() + [
+    # Traverse every actual manifest consumer, not only files that already pass
+    # a token heuristic (which would hide stale/noncompliant consumers).
+    manifest_consumers = [
+        _load_skill(stage["skill"])[0]
+        for manifest_path in ALL_MANIFESTS
+        for stage in _load_manifest(manifest_path).get("stages", []) if stage.get("skill")
+    ]
+    paths = sorted(set(manifest_consumers + list((SKILLS_DIR / "pipelines").rglob("*.md")) + _runtime_consumers() + [
         SKILLS_DIR / "meta/onboarding.md",
         SKILLS_DIR / "meta/reviewer.md",
         SKILLS_DIR / "pipelines/character-animation/executive-producer.md",
-    ]
+    ]))
     for path in paths:
-        body = path.read_text(encoding="utf-8")
+        # The retired heading also survived in line-wrapped references. Compare
+        # prose whitespace so a wrapped stale rule cannot escape this traversal.
+        body = " ".join(path.read_text(encoding="utf-8").split())
         assert "Present Both Composition Runtimes" not in body, path
         assert "when both were available is a CRITICAL" not in body, path
+        assert "the constraint does NOT skip the conversation" not in body, path
+        assert "the lock to remotion is NOT an excuse" not in body, path
+        assert not re.search(r"only viable (?:choice|runtime).*OK to proceed\?", body), path
 
 
 def test_character_renderer_handoff_cannot_override_authorized_runtime():

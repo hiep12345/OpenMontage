@@ -4,6 +4,12 @@ This is the shared architecture and conventions map. Start with `AGENTS.md` for
 task routing; client entrypoints point there and load this context when needed.
 The owning code, schemas and selected manifest define executable contracts.
 
+Owner-specific objectives and production contracts remain in the selected local
+canonical context. `scripts/session_context.py` exposes that source separately
+when a workspace is bound; read the operative objective and applicable rules
+before dependent work. See `docs/workspace.md`. A public clone needs no owner
+binding, and recovery does not confer execution or publication authority.
+
 ## Identity
 
 OpenMontage is an open-source, AI-orchestrated video production platform.

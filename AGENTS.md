@@ -18,6 +18,13 @@ cumulative decisions and checkpoint partial progress separate from frozen stage
 provenance. Recovery output grants no approval, spend, generation or publication
 authority. Reuse applicable context; do not repeat this read for every message.
 
+An optional local workspace binding makes owner context and production roots
+available across the canonical checkout and its worktrees. Read `docs/workspace.md`
+when this applies. Recovery shows the executing checkout separately from selected
+canonical owner instructions and objectives. Read their applicable full sections
+before dependent production; missing required owner context is a visible blocker.
+This binding does not activate native instructions or switch executing code.
+
 ## Route the request
 
 | Request | Required next step |
