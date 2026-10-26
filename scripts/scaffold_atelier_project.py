@@ -32,6 +32,10 @@ import re
 import sys
 from pathlib import Path
 
+REPO_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(REPO_ROOT))
+from lib.workspace import resolve_workspace, resolve_project_dir
+
 
 def to_camel(slug: str) -> str:
     parts = re.split(r"[\s_\-]+", slug.strip())
@@ -41,14 +45,20 @@ def to_camel(slug: str) -> str:
 def write(path: Path, content: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     if path.exists():
-        print(f"  skip (exists)  {path.relative_to(Path.cwd())}")
+        print(f"  skip (exists)  {path}")
         return
     path.write_text(content, encoding="utf-8")
-    print(f"  wrote          {path.relative_to(Path.cwd())}")
+    print(f"  wrote          {path}")
 
 
-def scaffold(slug: str, comp_id: str, root: Path) -> Path:
-    proj = root / "projects" / slug
+def scaffold(slug: str, comp_id: str, root: Path | None = None) -> Path:
+    # An explicit --root remains a standalone scaffold target for fixtures and
+    # callers; bound code uses its selected shared/legacy run root.
+    if root is None:
+        proj = resolve_project_dir(slug, create=True)
+    else:
+        workspace = resolve_workspace(root)
+        proj = resolve_project_dir(slug, workspace.projects_dir if workspace else root / "projects", create=True)
     (proj / "artifacts").mkdir(parents=True, exist_ok=True)
     for sub in ("assets/audio", "assets/music", "assets/footage", "public", "renders"):
         (proj / sub).mkdir(parents=True, exist_ok=True)
@@ -168,7 +178,7 @@ Naming them keeps you from drifting into them.
 """)
 
     # --- README -------------------------------------------------------------
-    rel_proj = f"projects/{slug}"
+    rel_proj = proj.resolve().as_posix()
     write(proj / "README.md", f"""\
 # {slug} — atelier (bespoke) composition
 
@@ -186,7 +196,7 @@ Hand-authored Remotion composition. Source of truth lives here under
 
 ```python
 from tools.video.video_compose import VideoCompose
-P = r"{rel_proj.replace('/', chr(92)*2)}"  # absolute path on your machine
+P = r"{rel_proj}"  # selected project root
 VideoCompose().execute({{
   "operation": "render",
   "output_path": P + r"\\renders\\final.mp4",
@@ -213,7 +223,7 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("slug", help="kebab-case project name, e.g. 'compound-snowball'")
     ap.add_argument("--composition-id", help="React composition id (default: CamelCase of slug)")
-    ap.add_argument("--root", default=".", help="Repo root (default: cwd)")
+    ap.add_argument("--root", help="Explicit repo root (default: shared project root resolver)")
     args = ap.parse_args(argv)
 
     slug = args.slug.strip().lower()
@@ -221,15 +231,15 @@ def main(argv: list[str] | None = None) -> int:
         print(f"error: slug must be kebab-case, got {slug!r}", file=sys.stderr)
         return 2
     comp_id = args.composition_id or to_camel(slug)
-    root = Path(args.root).resolve()
+    root = Path(args.root).resolve() if args.root is not None else None
 
-    print(f"Scaffolding atelier project '{slug}' (composition_id={comp_id}) under {root}\n")
+    print(f"Scaffolding atelier project '{slug}' (composition_id={comp_id}) from {root or REPO_ROOT}\n")
     proj = scaffold(slug, comp_id, root)
     print(f"\nDone. Now:")
-    print(f"  1. Open {proj.relative_to(root)}/art-direction.md and fill it in.")
+    print(f"  1. Open {proj}/art-direction.md and fill it in.")
     print(f"  2. Read skills/meta/bespoke-composition.md.")
     print(f"  3. Hand-author Composition.tsx (replace the black placeholder).")
-    print(f"  4. Render — see {proj.relative_to(root)}/README.md.")
+    print(f"  4. Render — see {proj}/README.md.")
     return 0
 
 

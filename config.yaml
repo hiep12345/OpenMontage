@@ -15,7 +15,6 @@ budget:
 
 checkpoint:
   policy: guided                 # guided | manual_all | auto_noncreative
-  storage_dir: pipeline          # relative to project root
 
 output:
   default_format: mp4
@@ -26,7 +25,6 @@ output:
   default_crf: 23
 
 paths:
-  pipeline_dir: pipeline
   library_dir: library
   styles_dir: styles
   skills_dir: skills

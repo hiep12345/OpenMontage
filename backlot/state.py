@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 from lib.events import read_events
-from lib.paths import PROJECTS_DIR, REPO_ROOT  # single source of truth (env-overridable)
+from lib.paths import PROJECTS_DIR, REPO_ROOT, iter_project_dirs
 from backlot.production_state import load_production_observation
 
 MEDIA_IMAGE_EXT = {".png", ".jpg", ".jpeg", ".webp", ".gif", ".svg"}
@@ -687,13 +687,8 @@ def summarize_project(project_dir: Path) -> dict[str, Any]:
 
 def list_projects(projects_dir: Optional[Path] = None) -> list[dict[str, Any]]:
     """Library view: every project directory, live-first then recency."""
-    root = Path(projects_dir) if projects_dir else PROJECTS_DIR
-    if not root.is_dir():
-        return []
     summaries = []
-    for entry in sorted(root.iterdir()):
-        if not entry.is_dir() or entry.name.startswith(("_", ".")):
-            continue
+    for entry in iter_project_dirs(projects_dir if projects_dir is not None else PROJECTS_DIR):
         try:
             summaries.append(summarize_project(entry))
         except Exception:

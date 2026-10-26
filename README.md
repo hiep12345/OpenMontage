@@ -24,7 +24,7 @@
   <a href="#sponsors">Sponsors</a> &nbsp;·&nbsp;
   <a href="docs/PROVIDERS.md">Providers</a> &nbsp;·&nbsp;
   <a href="docs/PR_REVIEW_GUIDE.md">Review Guide</a> &nbsp;·&nbsp;
-  <a href="AGENT_GUIDE.md">Agent Guide</a>
+  <a href="AGENTS.md">Agent Entry</a>
 </p>
 
 <p align="center">
@@ -225,7 +225,8 @@ That's it. The agent researches your topic with live web search, generates AI im
 This repo is built for agentic operation. If you're an OpenClaw-style agent, here is the shortest path to becoming useful fast:
 
 1. **Read the contract first**
-   Start with [`AGENT_GUIDE.md`](AGENT_GUIDE.md), then [`PROJECT_CONTEXT.md`](PROJECT_CONTEXT.md).
+   Start with [`AGENTS.md`](AGENTS.md), then load only the routed sections of
+   [`AGENT_GUIDE.md`](AGENT_GUIDE.md) and [`PROJECT_CONTEXT.md`](PROJECT_CONTEXT.md).
 2. **Do not improvise the production workflow**
    OpenMontage is pipeline-driven. Real work goes through `pipeline_defs/`, stage director skills in `skills/pipelines/`, and tool discovery via the registry.
 3. **Check the actual capability envelope**
@@ -704,7 +705,9 @@ OpenMontage works with any AI coding assistant that can read files and execute P
 | **Codex** | `CODEX.md` |
 | **Windsurf** | `.windsurfrules` |
 
-All platform files point to the shared `AGENT_GUIDE.md` (operating guide and agent contract) and `PROJECT_CONTEXT.md` (architecture reference).
+All platform entrypoints use the small `AGENTS.md` router. It selects relevant
+`AGENT_GUIDE.md` protocols and `PROJECT_CONTEXT.md` context. Optional shared local
+production roots and owner sources are described in [`docs/workspace.md`](docs/workspace.md).
 
 > **Coming soon:** Local LLM support via **Ollama** and **LM Studio** — run the full production pipeline without any cloud LLM.
 

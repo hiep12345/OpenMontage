@@ -14,12 +14,23 @@ python scripts/session_context.py --workspace C:\absolute\OpenMontage --project 
 ```
 
 The default workspace is the checkout containing the script, independent of shell
-cwd. Overview reads only the Identity, Architecture and Source of Truth sections
+cwd. Overview reads the Identity, Architecture, Source of Truth and any
+Owner's creative-production objective sections
 of that workspace's `PROJECT_CONTEXT.md`. For the owner's outer container, which
 has no such file, the one supported route is `maintained/PROJECT_CONTEXT.md`.
 The source checkout is shown explicitly; manifest/schema reads use that checkout.
 The full guide, skill index and architecture document are conditional references.
 No run directory, task store, catalog or historical archive is scanned by default.
+
+An optional validated local workspace binding adds `workspace_binding` with its
+source identity and hashes, production roots and selected owner context. A bound
+worktree exposes canonical owner project context and instructions separately from
+its executing source checkout. Objective paragraphs are exposed individually so a
+short preview does not silently omit operative goals. Missing selected owner
+context is `MISSING`, while an unbound public clone is `NOT_CONFIGURED`; read the
+applicable complete source before dependent production. This is tool-level context
+recovery, not native instruction activation or a checkout/code switch. See
+`docs/workspace.md` for configuration and explicit private skill consumption.
 
 Task selection requires paired session/task IDs. An optional task root must be a
 known absolute directory inside the selected workspace; its matching
@@ -33,7 +44,8 @@ source paths, note, remaining work, next action and historical evidence carry ex
 source references/hashes. Missing recorded remaining work is `UNKNOWN`.
 
 Run inspection needs no task. `--project` must explicitly name an absolute unlinked
-directory inside the workspace. Its `project.json` identity must match its directory
+directory inside the workspace, or inside a configured production/legacy root
+when bound. Its `project.json` identity must match its directory
 and its pipeline's local manifest. Stage statuses, explicit approval flags, budget,
 review, partial progress and frozen artifact snapshots remain recorded source data.
 The current cumulative `decision_log.json` is presented separately, with exact known
@@ -72,6 +84,6 @@ a malicious process replacing path ancestors between OS operations. Retry after
 the authorized writer settles; do not modify its store to satisfy this reader.
 
 Failures exit 2 with a JSON error on stderr and no partial context on stdout.
-Focused offline verification is `python -m pytest tests/lib/test_session_recovery.py -q`.
+Focused offline verification is `python -B scripts/run_tests.py tests/lib/test_session_recovery.py tests/lib/test_workspace_context.py -q`.
 The CLI uses UTF-8 output, suppresses import bytecode writes, and imports no provider,
 checkpoint writer, stage-context writer or workflow mutation API.

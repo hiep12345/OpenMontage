@@ -235,6 +235,13 @@ The manifest's approval gates, selected budget and publication boundaries remain
 binding. Material changes require the applicable new authorization and an appended
 decision entry; existing exact authorization is preserved for unchanged work.
 
+The selected local owner context can impose additional production contracts.
+Recover its source with `scripts/session_context.py` and read applicable canonical
+instructions before dependent work; see `docs/workspace.md`. A worktree continues
+to execute its own code. If a required owner contract has no compatible implementation
+there, surface that limitation before proceeding. A video-only review requirement
+applies to video production; use the separately selected photo workflow for photos.
+
 ### Composition Authoring Mode — Templated vs Atelier
 
 Orthogonal to *runtime* is *authoring mode*: **how** the composition is built. Present it as its own proposal decision and log it in `decision_log` (`category: "composition_mode"`).

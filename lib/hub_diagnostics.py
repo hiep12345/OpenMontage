@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from lib.distribution_hub import HubError, PUBLIC_ERROR_CODES, digest
+from lib.paths import resolve_project_dir
 
 _LABEL = re.compile(r"[A-Za-z0-9_.:-]{1,180}\Z")
 _OPERATIONS = {"inspect", "readiness", "ingest", "deliver", "content_index", "novelty", "handoff"}
@@ -52,7 +53,7 @@ def next_action(code, unknown=False):
 
 class HandoffReport:
     def __init__(self, inputs):
-        project = Path(inputs.get("project_dir") or Path(__file__).resolve().parents[1] / "projects" / "hub-handoffs")
+        project = Path(inputs["project_dir"]) if inputs.get("project_dir") else resolve_project_dir("hub-handoffs", create=True)
         directory = project / "artifacts" / "hub-handoffs"
         directory.mkdir(parents=True, exist_ok=True)
         self.path = directory / f"{uuid.uuid4()}.json"

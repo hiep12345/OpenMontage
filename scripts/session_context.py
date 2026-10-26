@@ -14,11 +14,12 @@ from lib.session_recovery import RecoveryError, recover  # noqa: E402
 
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--workspace", default=str(Path(__file__).resolve().parents[1]))
+    parser.add_argument("--workspace", default=str(Path(__file__).resolve().parents[1]),
+                        help="Explicit recovery root; optional local owner binding is resolved from its Git identity")
     parser.add_argument("--task-root", help="Exact workflow checkout within workspace")
     parser.add_argument("--session", help="Exact recorded workflow owner session")
     parser.add_argument("--task", help="Exact recorded task, paired with session")
-    parser.add_argument("--project", help="Explicit absolute run directory within workspace")
+    parser.add_argument("--project", help="Explicit absolute run directory within workspace or bound production roots")
     parser.add_argument("--stage", help="Optional exact manifest stage")
     args = parser.parse_args(argv)
     try:

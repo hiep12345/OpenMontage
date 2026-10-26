@@ -19,13 +19,14 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
 
-from lib.paths import PROJECTS_DIR, REPO_ROOT  # single source of truth
+from lib.paths import PROJECTS_DIR, REPO_ROOT, project_roots, resolve_project_dir
+from lib.workspace import WorkspaceError
+from lib.run_lock import run_write_lock
 
 EVENTS_FILENAME = "events.jsonl"
 
-# Thread-level serialization only. Cross-PROCESS appends are unsynchronized
-# by design: single-line O_APPEND writes rarely tear, and read_events skips
-# malformed lines, so a torn line degrades to one missing activity entry.
+# Local append serialization plus the shared cooperative run writer lock.
+# A busy/foreign-owned run drops observability without disrupting production.
 _write_lock = threading.Lock()
 
 # Input keys checked (in order) when inferring the project a tool call
@@ -57,18 +58,22 @@ def infer_project_dir(inputs: Any) -> Optional[Path]:
         # arbitrary user dir) must not receive an events.jsonl. Explicit
         # values are normalized to the project ROOT the same way hints are,
         # so project_dir="projects/x/renders/build" attributes to projects/x.
-        projects_root = PROJECTS_DIR.resolve()
         for key in _EXPLICIT_PROJECT_KEYS + _PATH_HINT_KEYS:
             value = inputs.get(key)
             if not isinstance(value, (str, Path)) or not str(value):
                 continue
-            try:
-                resolved = Path(value).resolve()
-                rel = resolved.relative_to(projects_root)
-            except (ValueError, OSError):
-                continue
-            if rel.parts:
-                return PROJECTS_DIR / rel.parts[0]
+            for root in project_roots(PROJECTS_DIR):
+                try:
+                    resolved = Path(value).resolve()
+                    rel = resolved.relative_to(root.resolve())
+                    if rel.parts:
+                        # Resolve from the selected root set, so an ambiguous ID
+                        # cannot silently collect events under either copy.
+                        return resolve_project_dir(rel.parts[0], PROJECTS_DIR)
+                except WorkspaceError:
+                    return None
+                except (ValueError, OSError):
+                    continue
     except Exception:
         return None
     return None
@@ -88,7 +93,7 @@ def emit_event(project_dir: Path | str, payload: dict[str, Any]) -> None:
         entry.update({k: v for k, v in payload.items() if v is not None})
         path = project_dir / EVENTS_FILENAME
         line = json.dumps(entry, default=str)
-        with _write_lock:
+        with run_write_lock(project_dir), _write_lock:
             with open(path, "a", encoding="utf-8") as f:
                 f.write(line + "\n")
     except Exception:

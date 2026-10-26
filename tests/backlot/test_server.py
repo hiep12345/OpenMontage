@@ -89,7 +89,10 @@ class TestBacklotServerApi:
     def test_health(self, client):
         response = client.get("/api/health")
         assert response.status_code == 200
-        assert response.json() == {"ok": True, "app": "backlot"}
+        body = response.json()
+        assert body["ok"] is True and body["app"] == "backlot"
+        assert body["identity"]["projects_dir"] == str(server_mod.PROJECTS_DIR.resolve())
+        assert body["identity"]["source_fingerprint"].startswith("sha256:")
 
     def test_projects_shape_and_state(self, client, projects_root):
         _make_project(projects_root, "film")
