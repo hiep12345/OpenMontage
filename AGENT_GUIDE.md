@@ -136,7 +136,10 @@ Agent reads pipeline manifest (YAML) -> reads stage director skill (MD)
 -> checkpoints (Python utility) -> presents to human for approval
 ```
 
-**Python = tools + persistence.** No orchestration logic, creative decisions, review logic, or checkpoint policy in Python code. The agent makes those decisions guided by instructions.
+The agent owns creative direction and semantic review. Python supplies tools,
+persistence and deterministic contract enforcement, including checkpoint/stage
+validation and budget accounting. Manifest policy and recorded authority still
+govern production; a successful runtime check is not creative or media approval.
 
 ### Caption website acceptance
 
@@ -298,7 +301,11 @@ Infrastructure files:
 
 ## Project Directory Convention
 
-Every production run creates a project workspace under `projects/`. This directory is gitignored. Preserve accepted assets, checkpoints and receipts; paid or stochastic outputs are not assumed reproducible.
+Every production run uses the selected `PROJECTS_DIR` from `lib/paths.py`
+(`OPENMONTAGE_PROJECTS_DIR`, otherwise this checkout's `projects/`). Recover the
+assigned root before writing; a different current directory does not select a
+different production. Preserve accepted assets, checkpoints and receipts;
+gitignored, paid or stochastic outputs are not assumed reproducible.
 
 ```
 projects/<project-name>/
@@ -323,6 +330,13 @@ At pipeline initialization, before any stage runs:
 All tools and agents must write outputs to these paths — **always pass an explicit `output_path` under `projects/<project-id>/`**. Assets written to the repo root, cwd, or temp dirs are invisible to the user's board and violate the workspace contract.
 
 **This applies to atelier and HyperFrames-skill runs too**: hand-authored compositions still write the canonical artifacts they have (script or beats-plan, scene_plan-equivalent, asset manifest) plus checkpoints into `projects/<project-id>/`. The board is runtime-agnostic; only runs that skip the artifacts get a degraded board.
+
+For maintenance, use the existing `make test` / `make test-contracts` targets or
+`python -B scripts/run_tests.py <pytest arguments>`. Their invocation-owned temp
+and cache are cleaned on success; failed/interrupted diagnostics are retained at
+the reported path. These are separate from production workspaces. Clean only
+owned artifacts after preserving needed evidence; historical fixtures, accepted
+media and shared runtimes require their own dependency/owner decision.
 
 ## Music Library
 

@@ -9,13 +9,14 @@ Also useful as a demo driver.
         [--fast] [--cleanup]
 
 --fast     compresses waits to ~0.3s (for automated verification)
---cleanup  removes the project directory at the end
+--cleanup  removes only this invocation's new project, including on failure
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import re
 import shutil
 import sys
 import time
@@ -59,22 +60,43 @@ def artifacts_for(project_id: str) -> dict:
     return {"script": script, "scene_plan": scene_plan}
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--project", default="backlot-demo-run")
     parser.add_argument("--fast", action="store_true")
     parser.add_argument("--cleanup", action="store_true")
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
-    wait = 0.3 if args.fast else 2.5
     pid = args.project
-    pdir = PROJECTS_DIR / pid
-    if pdir.exists():
-        shutil.rmtree(pdir)
+    # A portable direct-child name; paths, Windows devices and aliases are invalid.
+    if (not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]*", pid)
+            or re.fullmatch(r"(?i:CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])", pid)):
+        parser.error("--project must be a safe direct-child project ID (letters, digits, _ or -)")
+    projects_root = PROJECTS_DIR.resolve()
+    pdir = projects_root / pid
+    projects_root.mkdir(parents=True, exist_ok=True)
+    try:
+        pdir.mkdir()  # Exclusive reservation: never reuse or remove an existing run.
+    except FileExistsError:
+        parser.error(f"Project already exists; choose a new --project ID: {pdir}")
+    owned_identity = pdir.stat()
+    try:
+        return simulate(pid, pdir, 0.3 if args.fast else 2.5)
+    finally:
+        if args.cleanup and pdir.exists():
+            current = pdir.stat(follow_symlinks=False)
+            if (pdir.resolve() != pdir
+                    or (current.st_dev, current.st_ino) != (owned_identity.st_dev, owned_identity.st_ino)):
+                raise RuntimeError(f"Refusing cleanup: project directory ownership changed: {pdir}")
+            shutil.rmtree(pdir)
+            print("[sim] cleaned up")
 
+
+def simulate(pid: str, pdir: Path, wait: float) -> int:
+    # Synthetic progression only: fixture checkpoints/events never submit provider jobs.
     print(f"[sim] init_project {pid}")
     init_project(pid, title="The Last Lighthouse", pipeline_type="cinematic", stage_context_required=False,
-                 style_playbook="clean-professional")
+                 style_playbook="clean-professional", pipeline_dir=pdir.parent)
     art = artifacts_for(pid)
 
     def save_artifact(name: str, data: dict) -> None:
@@ -82,7 +104,7 @@ def main() -> int:
         path.write_text(json.dumps(data, indent=2), encoding="utf-8")
 
     def cp(stage: str, status: str, artifacts: dict, **kw) -> None:
-        write_checkpoint(PROJECTS_DIR, pid, stage, status, artifacts,
+        write_checkpoint(pdir.parent, pid, stage, status, artifacts,
                          pipeline_type="cinematic", **kw)
         print(f"[sim] checkpoint {stage} -> {status}")
         time.sleep(wait)
@@ -93,6 +115,18 @@ def main() -> int:
     brief = sample_artifact("research_brief")
     brief["topic"] = "The Last Lighthouse"
     cp("research", "completed", {"research_brief": brief})
+
+    # The real cinematic contract requires proposal approval before script.
+    proposal = sample_artifact("proposal_packet")
+    proposal["production_plan"]["pipeline"] = "cinematic"
+    proposal["approval"]["status"] = "pending"
+    cp("proposal", "in_progress", {})
+    save_artifact("proposal_packet", proposal)
+    cp("proposal", "awaiting_human", {"proposal_packet": proposal})
+    time.sleep(wait)
+    proposal["approval"]["status"] = "approved"
+    save_artifact("proposal_packet", proposal)
+    cp("proposal", "completed", {"proposal_packet": proposal}, human_approved=True)
 
     # script gates: awaiting_human -> approved
     cp("script", "in_progress", {})
@@ -136,7 +170,7 @@ def main() -> int:
         manifest["total_cost_usd"] = round(manifest["total_cost_usd"] + 0.05, 2)
         save_artifact("asset_manifest", manifest)
         done_ids.append(sid)
-        write_checkpoint(PROJECTS_DIR, pid, "assets", "in_progress", {},
+        write_checkpoint(pdir.parent, pid, "assets", "in_progress", {},
                          pipeline_type="cinematic",
                          metadata={"partial_progress": {"completed_scene_ids": done_ids}},
                          cost_snapshot={"total_spent_usd": manifest["total_cost_usd"],
@@ -151,9 +185,6 @@ def main() -> int:
     cp("assets", "completed", {"asset_manifest": manifest}, human_approved=True)
 
     print(f"[sim] done — board at http://127.0.0.1:4750/p/{pid}")
-    if args.cleanup:
-        shutil.rmtree(pdir)
-        print("[sim] cleaned up")
     return 0
 
 

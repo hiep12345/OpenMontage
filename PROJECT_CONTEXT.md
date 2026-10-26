@@ -1,6 +1,8 @@
 # OpenMontage - Shared Project Context
 
-This is the single source of truth for project architecture and conventions. All platform-specific agent files (CLAUDE.md, CODEX.md, CURSOR.md, COPILOT.md) should point here instead of duplicating this content.
+This is the shared architecture and conventions map. Start with `AGENTS.md` for
+task routing; client entrypoints point there and load this context when needed.
+The owning code, schemas and selected manifest define executable contracts.
 
 ## Identity
 
@@ -8,7 +10,10 @@ OpenMontage is an open-source, AI-orchestrated video production platform.
 
 ## Architecture: Instruction-Driven (Agent-First)
 
-The AI agent IS the intelligence. Python exists only for tools and persistence. Everything else — orchestration, creative decisions, review, stage transitions — lives in instructions (YAML manifests + markdown skills) the agent follows.
+The agent selects and directs the pipeline using manifests and relevant skills.
+It owns creative decisions and semantic review. Python provides capabilities,
+persistence and deterministic enforcement of artifact, checkpoint, stage-context
+and budget contracts; it does not supply creative approval or media perception.
 
 ```
 Agent reads pipeline manifest (YAML) → reads stage director skill (MD)
@@ -16,7 +21,9 @@ Agent reads pipeline manifest (YAML) → reads stage director skill (MD)
 → checkpoints (Python utility) → presents to human for approval
 ```
 
-**No Python orchestrator, no Python reviewer, no Python handlers.** The agent drives the pipeline.
+The agent drives production within the selected manifest and recorded authority.
+Runtime checks in `lib/checkpoint.py`, `lib/stage_context.py` and the owning tools
+enforce their contracts; instructions and recorded receipts do not replace them.
 
 ## Source of Truth
 
@@ -28,7 +35,8 @@ Agent reads pipeline manifest (YAML) → reads stage director skill (MD)
 - **Style playbooks:** `styles/*.yaml` (schema: `schemas/styles/playbook.schema.json`)
 - **Stage director skills:** `skills/pipelines/<pipeline>/<stage>-director.md`
 - **Meta skills:** `skills/meta/*.md` (reviewer, checkpoint-protocol, skill-creator)
-- **Architecture deep-dive:** `docs/ARCHITECTURE.md`
+- **Architecture background:** `docs/ARCHITECTURE.md` (dated overview; inspect the
+  owning code when current behavior differs)
 
 ## Knowledge Architecture (3 Layers)
 
