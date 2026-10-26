@@ -45,14 +45,14 @@ PLATFORM_POINTERS = (
 )
 
 
-def _guide_section(title: str) -> str:
-    guide = _read("AGENT_GUIDE.md")
+def _guide_section(title: str, document: str = "AGENT_GUIDE.md") -> str:
+    guide = _read(document)
     match = re.search(
         rf"^#{{2,3}} {re.escape(title)}\n(.*?)(?=^#{{2,3}} |\Z)",
         guide,
         flags=re.MULTILINE | re.DOTALL,
     )
-    assert match, f"Router references missing guide section: {title}"
+    assert match, f"Router references missing section in {document}: {title}"
     return match.group(1)
 
 
@@ -89,8 +89,32 @@ def test_router_distinguishes_inspection_resume_and_new_production() -> None:
     reference = next(line for line in routes if "supplied as inspiration" in line)
     assert "video-reference-analyst.md" in reference
     assert "Source footage" in reference and "source_media_review" in reference
+    section_documents = dict(
+        re.findall(r"\*\*([^*]+)\*\*\s+in\s+`([^`]+\.md)`", router)
+    )
     for section in re.findall(r"\*\*([^*]+)\*\*", router):
-        _guide_section(section)
+        _guide_section(section, section_documents.get(section, "AGENT_GUIDE.md"))
+
+
+def test_router_checks_explicit_reference_sections_in_their_document(monkeypatch) -> None:
+    original_read = _read
+    router = original_read("AGENTS.md") + (
+        "\nRead **External reference** in `docs/external-reference.md`.\n"
+    )
+    reference = {"text": "## External reference\nScoped guidance.\n"}
+
+    def read_document(path: str) -> str:
+        if path == "AGENTS.md":
+            return router
+        if path == "docs/external-reference.md":
+            return reference["text"]
+        return original_read(path)
+
+    monkeypatch.setitem(globals(), "_read", read_document)
+    test_router_distinguishes_inspection_resume_and_new_production()
+    reference["text"] = "## Different section\n"
+    with pytest.raises(AssertionError, match="docs/external-reference.md"):
+        test_router_distinguishes_inspection_resume_and_new_production()
 
 
 def test_exact_resume_reuses_choices_without_bypassing_authority() -> None:
